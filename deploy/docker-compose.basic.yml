@@ -1,0 +1,22 @@
+# Vendor Credit Claims — app only, behind the droplet's existing Caddy with HTTP basic auth.
+#
+# No SSO. Caddy (already running for n8n) terminates HTTPS, prompts for a shared
+# username/password, then reverse-proxies to this `claims` container. The app is never
+# published to the host directly — it's only reachable on Caddy's docker network.
+#
+# Run from this deploy/ folder:  docker compose -f docker-compose.basic.yml up -d --build
+# Values come from deploy/.env (see .env.basic.example).
+
+services:
+  claims:
+    build: ..
+    restart: unless-stopped
+    volumes:
+      - ../data:/app/data        # SQLite db + uploaded files persist here on the host
+    networks: [caddy]
+    # no published ports — Caddy reaches it as http://claims:8000 on the shared network
+
+networks:
+  caddy:
+    external: true
+    name: ${CADDY_NETWORK}        # the docker network Caddy is already on (see DEPLOY-BASIC.md)

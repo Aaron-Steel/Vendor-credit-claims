@@ -1,0 +1,22 @@
+# Add this block to the droplet's existing Caddyfile (the one that already serves n8n),
+# then reload Caddy. Caddy obtains a Let's Encrypt cert for the subdomain automatically
+# once DNS points at the droplet.
+#
+# Replace claims.yourcompany.com with your real subdomain, and replace the user line
+# with the output of:
+#     docker exec <caddy-container> caddy hash-password --plaintext 'YourSharedPassword'
+#
+# The hash starts with $2a$ (bcrypt). Keep it in single quotes is NOT needed in the
+# Caddyfile, but the $ signs must stay exactly as printed.
+
+claims.yourcompany.com {
+    basic_auth {
+        # username  <bcrypt-hash-from-caddy-hash-password>
+        team $2a$14$REPLACE_WITH_GENERATED_HASH
+    }
+    reverse_proxy claims:8000
+}
+
+# NOTE: Caddy v2.8+ uses the directive `basic_auth` (with underscore).
+# If your Caddy is older and reports an unknown directive, change it to `basicauth`
+# (no underscore) — the block contents are identical.
