@@ -2,11 +2,41 @@
 {% block content %}
 <h1>Promotions</h1>
 
-{% if not rows %}
+{% if stats.count == 0 and not sel_brand and not sel_status %}
   <div class="empty">
     <p>No promotions yet.</p>
     <a class="btn" href="/promo/new">Create your first promotion</a>
   </div>
+{% else %}
+
+<section class="tiles">
+  <div class="tile"><span>Active promos</span><strong>{{ stats.active }}</strong><small>of {{ stats.count }}</small></div>
+  <div class="tile"><span>Customer claimed</span><strong>${{ stats.customer_claimed|money }}</strong></div>
+  <div class="tile"><span>Vendor outstanding</span><strong>${{ stats.vendor_outstanding|money }}</strong></div>
+  <div class="tile"><span>Vendor recovered</span><strong>${{ stats.vendor_recovered|money }}</strong></div>
+  <div class="tile"><span>MacGear absorbed</span><strong>${{ stats.mg_absorbed|money }}</strong></div>
+</section>
+
+<form method="get" action="/" class="filterbar">
+  <label>Brand
+    <select name="brand">
+      <option value="">All brands</option>
+      {% for b in brands %}<option value="{{ b }}" {{ 'selected' if sel_brand==b }}>{{ b }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Status
+    <select name="status">
+      <option value="">All statuses</option>
+      {% for s in PROMO_STATUSES %}<option value="{{ s }}" {{ 'selected' if sel_status==s }}>{{ s }}</option>{% endfor %}
+    </select>
+  </label>
+  <button class="btn small">Filter</button>
+  {% if sel_brand or sel_status %}<a href="/" class="clear">clear</a>{% endif %}
+  <span class="filter-count">{{ rows|length }} shown</span>
+</form>
+
+{% if not rows %}
+  <p class="hint">No promotions match the filter. <a href="/">Clear filter</a></p>
 {% else %}
 <table class="grid">
   <thead>
@@ -48,5 +78,6 @@
   {% endfor %}
   </tbody>
 </table>
+{% endif %}
 {% endif %}
 {% endblock %}

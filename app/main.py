@@ -58,10 +58,38 @@ def _parse_date(v):
 
 # ---- dashboard ---------------------------------------------------------------
 @app.get("/", response_class=HTMLResponse)
-def dashboard(request: Request, db: Session = Depends(get_db)):
-    promos = db.scalars(select(Promotion).order_by(Promotion.created_at.desc())).all()
-    rows = [build_promo_view(p) for p in promos]
-    return templates.TemplateResponse(request, "dashboard.html", {"rows": rows})
+def dashboard(request: Request, brand: str = "", status: str = "",
+              db: Session = Depends(get_db)):
+    q = select(Promotion).order_by(Promotion.created_at.desc())
+    if brand:
+        q = q.where(Promotion.brand == brand)
+    if status:
+        q = q.where(Promotion.status == status)
+    rows = [build_promo_view(p) for p in db.scalars(q).all()]
+
+    # compact summary tiles over the currently-shown (filtered) set
+    customer_claimed = sum(
+        rv.pr.customer_claim.amount_claimed or 0.0
+        for r in rows for rv in r.retailers
+        if rv.pr.customer_claim and rv.pr.customer_claim.amount_claimed is not None)
+    vr_done = "Credit Received"
+    stats = {
+        "count": len(rows),
+        "active": sum(1 for r in rows if r.promo.status not in ("Draft", "Closed")),
+        "customer_claimed": customer_claimed,
+        "vendor_outstanding": sum(
+            r.supplier_total_aud for r in rows
+            if not (r.promo.vendor_request and r.promo.vendor_request.status == vr_done)),
+        "vendor_recovered": sum(
+            r.supplier_total_aud for r in rows
+            if r.promo.vendor_request and r.promo.vendor_request.status == vr_done),
+        "mg_absorbed": sum(r.mg_total_aud for r in rows),
+    }
+    brands = [b for b in db.scalars(
+        select(Promotion.brand).distinct().order_by(Promotion.brand)).all() if b]
+    return templates.TemplateResponse(request, "dashboard.html", {
+        "rows": rows, "stats": stats, "brands": brands,
+        "sel_brand": brand, "sel_status": status})
 
 
 # ---- create promotion --------------------------------------------------------
