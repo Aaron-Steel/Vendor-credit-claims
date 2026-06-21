@@ -10,11 +10,31 @@
 {% else %}
 
 <section class="tiles">
-  <div class="tile"><span>Active promos</span><strong>{{ stats.active }}</strong><small>of {{ stats.count }}</small></div>
-  <div class="tile"><span>Customer claimed</span><strong>${{ stats.customer_claimed|money }}</strong></div>
-  <div class="tile"><span>Vendor outstanding</span><strong>${{ stats.vendor_outstanding|money }}</strong></div>
-  <div class="tile"><span>Vendor recovered</span><strong>${{ stats.vendor_recovered|money }}</strong></div>
-  <div class="tile"><span>MacGear absorbed</span><strong>${{ stats.mg_absorbed|money }}</strong></div>
+  <div class="tile t-blue">
+    <span class="tlabel">Active promos</span>
+    <span class="tval">{{ stats.active }}</span>
+    <span class="tsub">of {{ stats.count }} shown</span>
+  </div>
+  <div class="tile t-teal">
+    <span class="tlabel">Customer claimed</span>
+    <span class="tval">${{ stats.customer_claimed|money }}</span>
+    <span class="tsub">claimed by customers</span>
+  </div>
+  <div class="tile t-amber">
+    <span class="tlabel">Vendor outstanding</span>
+    <span class="tval">${{ stats.vendor_outstanding|money }}</span>
+    <span class="tsub">still to recover</span>
+  </div>
+  <div class="tile t-green">
+    <span class="tlabel">Vendor recovered</span>
+    <span class="tval">${{ stats.vendor_recovered|money }}</span>
+    <span class="tsub">credits received</span>
+  </div>
+  <div class="tile t-grey">
+    <span class="tlabel">MacGear absorbed</span>
+    <span class="tval">${{ stats.mg_absorbed|money }}</span>
+    <span class="tsub">self-funded</span>
+  </div>
 </section>
 
 <form method="get" action="/" class="filterbar">

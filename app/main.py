@@ -43,6 +43,12 @@ templates.env.filters["pct"] = pct
 # slug for pill css classes, and the workflow taxonomy, available in all templates
 templates.env.filters["slug"] = lambda s: (s or "").lower().replace(" ", "")
 templates.env.globals.update(workflow.context())
+# cache-busting version for static assets (changes whenever style.css is updated)
+try:
+    asset_ver = str(int(os.path.getmtime(os.path.join(HERE, "static", "style.css"))))
+except OSError:
+    asset_ver = "1"
+templates.env.globals["asset_ver"] = asset_ver
 
 
 def _parse_float(v):
