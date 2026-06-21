@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Promotions</h1>
+
+{% if not rows %}
+  <div class="empty">
+    <p>No promotions yet.</p>
+    <a class="btn" href="/promo/new">Create your first promotion</a>
+  </div>
+{% else %}
+<table class="grid">
+  <thead>
+    <tr>
+      <th>Claim #</th><th>Promotion</th><th>Brand</th><th>Dates</th>
+      <th>Retailers</th>
+      <th class="num">Cust. expected</th>
+      <th class="num">Vendor claim (AUD)</th>
+      <th>Customer claims</th>
+      <th>Vendor request</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for r in rows %}
+    {% set p = r.promo %}
+    <tr>
+      <td>{{ p.claim_number }}</td>
+      <td><a href="/promo/{{ p.id }}"><strong>{{ p.name or "(untitled)" }}</strong></a>
+          <span class="pill pg-{{ PILL_GROUP.get(p.status,'grey') }}">{{ p.status }}</span></td>
+      <td>{{ p.brand }}</td>
+      <td>{{ p.start_date }} → {{ p.end_date }}</td>
+      <td>{{ r.retailers|length }}</td>
+      <td class="num">{{ r.customer_expected_aud|money }}</td>
+      <td class="num">{{ r.supplier_total_aud|money }}</td>
+      <td>
+        {% set claimed = r.retailers|selectattr('pr.customer_claim')|list %}
+        {% set credited = [] %}
+        {% for rv in r.retailers if rv.pr.customer_claim and rv.pr.customer_claim.status == 'Credited' %}{% set _ = credited.append(1) %}{% endfor %}
+        {{ credited|length }}/{{ r.retailers|length }} credited
+      </td>
+      <td>
+        {% if p.vendor_request %}
+          <span class="pill pg-{{ PILL_GROUP.get(p.vendor_request.status,'grey') }}">{{ p.vendor_request.status }}</span>
+        {% else %}—{% endif %}
+      </td>
+      <td><a href="/promo/{{ p.id }}">Open →</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

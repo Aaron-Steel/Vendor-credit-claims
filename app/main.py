@@ -1,0 +1,424 @@
+"""FastAPI app: vendor credit claims manager."""
+import os
+import shutil
+import uuid
+from datetime import date, datetime
+
+from fastapi import Depends, FastAPI, File, Request, UploadFile
+from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse,
+                               RedirectResponse, StreamingResponse)
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from .db import Base, UPLOAD_DIR, engine, ensure_schema, get_db, migrate_statuses
+from .export import build_workbook
+from .models import (Attachment, CustomerClaim, LineItem, Product, PromoRetailer,
+                     Promotion, Retailer, VendorRequest)
+from .service import build_promo_view
+from . import workflow
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+Base.metadata.create_all(engine)
+ensure_schema()
+migrate_statuses()
+
+app = FastAPI(title="Vendor Credit Claims")
+app.mount("/static", StaticFiles(directory=os.path.join(HERE, "static")), name="static")
+templates = Jinja2Templates(directory=os.path.join(HERE, "templates"))
+
+
+# ---- template helpers --------------------------------------------------------
+def money(v):
+    return "" if v is None else f"{v:,.2f}"
+
+
+def pct(v):
+    return "" if v is None else f"{v * 100:.1f}%"
+
+
+templates.env.filters["money"] = money
+templates.env.filters["pct"] = pct
+# slug for pill css classes, and the workflow taxonomy, available in all templates
+templates.env.filters["slug"] = lambda s: (s or "").lower().replace(" ", "")
+templates.env.globals.update(workflow.context())
+
+
+def _parse_float(v):
+    try:
+        return float(v) if v not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_date(v):
+    return datetime.strptime(v, "%Y-%m-%d").date() if v else None
+
+
+# ---- dashboard ---------------------------------------------------------------
+@app.get("/", response_class=HTMLResponse)
+def dashboard(request: Request, db: Session = Depends(get_db)):
+    promos = db.scalars(select(Promotion).order_by(Promotion.created_at.desc())).all()
+    rows = [build_promo_view(p) for p in promos]
+    return templates.TemplateResponse(request, "dashboard.html", {"rows": rows})
+
+
+# ---- create promotion --------------------------------------------------------
+@app.get("/promo/new", response_class=HTMLResponse)
+def new_promo_form(request: Request, db: Session = Depends(get_db)):
+    retailers = db.scalars(select(Retailer).order_by(Retailer.name)).all()
+    brands = db.scalars(select(Product.brand).distinct().order_by(Product.brand)).all()
+    return templates.TemplateResponse(request, "promo_new.html", {
+        "retailers": retailers,
+        "brands": [b for b in brands if b], "today": date.today().isoformat()})
+
+
+def _validated_split(form):
+    """Return (supplier, mg, retailer) with retailer as the remainder, or None if invalid."""
+    s = _parse_float(form.get("ratio_supplier")) or 0.0
+    m = _parse_float(form.get("ratio_mg")) or 0.0
+    r = round(1.0 - s - m, 6)
+    if s < 0 or m < 0 or r < -1e-9:
+        return None
+    return s, m, r
+
+
+@app.post("/promo/new")
+async def create_promo(request: Request, db: Session = Depends(get_db)):
+    form = await request.form()
+    start = _parse_date(form.get("start_date")) or date.today()
+    end = _parse_date(form.get("end_date")) or date.today()
+    if end < start:
+        return RedirectResponse("/promo/new?err=dates", status_code=303)
+    split = _validated_split(form)
+    if split is None:
+        return RedirectResponse("/promo/new?err=split", status_code=303)
+    supplier, mg, retailer = split
+    promo = Promotion(
+        claim_number=form.get("claim_number", "").strip(),
+        name=form.get("name", "").strip(),
+        brand=form.get("brand", "").strip(),
+        start_date=start,
+        end_date=end,
+        aud_usd_rate=_parse_float(form.get("aud_usd_rate")) or 0.65,
+        ratio_retailer=retailer,
+        ratio_mg=mg,
+        ratio_supplier=supplier,
+        growth_default=_parse_float(form.get("growth_default")) or 0.0,
+        notes=form.get("notes", "").strip(),
+    )
+    db.add(promo)
+    db.flush()
+    for name in form.getlist("retailer"):
+        rebate = _parse_float(form.get(f"rebate_{name}")) or 0.0
+        db.add(PromoRetailer(promo_id=promo.id, retailer_name=name, rebate=rebate))
+    db.add(VendorRequest(promo_id=promo.id))
+    db.commit()
+    return RedirectResponse(f"/promo/{promo.id}", status_code=303)
+
+
+# ---- promotion detail --------------------------------------------------------
+@app.get("/promo/{promo_id}", response_class=HTMLResponse)
+def promo_detail(promo_id: int, request: Request, view: str = "internal",
+                 db: Session = Depends(get_db)):
+    promo = db.get(Promotion, promo_id)
+    if not promo:
+        return RedirectResponse("/", status_code=303)
+    pv = build_promo_view(promo)
+    retailers = db.scalars(select(Retailer).order_by(Retailer.name)).all()
+    if view not in ("internal", "sales", "vendor"):
+        view = "internal"
+    return templates.TemplateResponse(request, "promo_detail.html", {
+        "pv": pv, "promo": promo, "view": view,
+        "all_retailers": retailers})
+
+
+# ---- product lookup (autofill) ----------------------------------------------
+@app.get("/api/product/{code}")
+def product_lookup(code: str, retailer: str = "", db: Session = Depends(get_db)):
+    p = db.scalar(select(Product).where(Product.code == code))
+    if not p:
+        return JSONResponse({"found": False})
+    buy = p.channel_prices.get(retailer) if retailer else None
+    return JSONResponse({"found": True, "code": p.code, "description": p.description,
+                         "brand": p.brand, "rrp_inc": p.rrp_inc, "retailer_buy_ex": buy})
+
+
+# ---- line items --------------------------------------------------------------
+@app.post("/retailer/{pr_id}/line")
+async def add_line(pr_id: int, request: Request, db: Session = Depends(get_db)):
+    form = await request.form()
+    pr = db.get(PromoRetailer, pr_id)
+    code = form.get("product_code", "").strip()
+    prod = db.scalar(select(Product).where(Product.code == code)) if code else None
+    line = LineItem(
+        promo_retailer_id=pr_id,
+        product_code=code,
+        description=form.get("description", "").strip() or (prod.description if prod else ""),
+        rrp_inc=_parse_float(form.get("rrp_inc")) or (prod.rrp_inc if prod else None),
+        retailer_buy_ex=_parse_float(form.get("retailer_buy_ex")) or 0.0,
+        pct_off=(_parse_float(form.get("pct_off")) or 0.0) / 100.0,
+        avg_6wk=_parse_float(form.get("avg_6wk")),
+        actual_sales=_parse_float(form.get("actual_sales")),
+    )
+    db.add(line)
+    db.commit()
+    return RedirectResponse(f"/promo/{pr.promo_id}", status_code=303)
+
+
+@app.post("/retailer/{pr_id}/copy_from")
+async def copy_lines(pr_id: int, request: Request, db: Session = Depends(get_db)):
+    """Copy line items from another retailer block in the same promo into this one.
+
+    Carries code/description/RRP/% off and funding overrides; re-derives the buy price
+    from the target retailer's channel price where available; leaves 6wk avg blank
+    (customer-specific). Skips SKUs already present in the target block.
+    """
+    form = await request.form()
+    target = db.get(PromoRetailer, pr_id)
+    source = db.get(PromoRetailer, int(form.get("source_pr_id")))
+    if not target or not source or source.promo_id != target.promo_id:
+        return RedirectResponse(f"/promo/{target.promo_id if target else ''}", status_code=303)
+
+    existing_codes = {l.product_code for l in target.lines}
+    for src in source.lines:
+        if src.product_code and src.product_code in existing_codes:
+            continue
+        prod = db.scalar(select(Product).where(Product.code == src.product_code)) if src.product_code else None
+        buy = None
+        if prod and prod.channel_prices:
+            buy = prod.channel_prices.get(target.retailer_name)
+        db.add(LineItem(
+            promo_retailer_id=target.id,
+            product_code=src.product_code,
+            description=src.description,
+            rrp_inc=src.rrp_inc,
+            retailer_buy_ex=buy if buy is not None else src.retailer_buy_ex,
+            pct_off=src.pct_off,
+            avg_6wk=None,
+            ratio_supplier=src.ratio_supplier,
+            ratio_mg=src.ratio_mg,
+            ratio_retailer=src.ratio_retailer,
+            growth=src.growth,
+        ))
+        existing_codes.add(src.product_code)
+    db.commit()
+    return RedirectResponse(f"/promo/{target.promo_id}", status_code=303)
+
+
+@app.post("/line/{line_id}/edit")
+async def edit_line(line_id: int, request: Request, db: Session = Depends(get_db)):
+    form = await request.form()
+    line = db.get(LineItem, line_id)
+    if not line:
+        return RedirectResponse("/", status_code=303)
+    line.product_code = form.get("product_code", "").strip()
+    line.description = form.get("description", "").strip()
+    line.rrp_inc = _parse_float(form.get("rrp_inc"))
+    line.retailer_buy_ex = _parse_float(form.get("retailer_buy_ex")) or 0.0
+    promo_id = line.promo_retailer.promo_id
+    # funding split: validate first so a bad split rejects the whole save
+    if form.get("override_split"):
+        s = _parse_float(form.get("ratio_supplier")) or 0.0
+        m = _parse_float(form.get("ratio_mg")) or 0.0
+        r = round(1.0 - s - m, 6)
+        if s < 0 or m < 0 or r < -1e-9:
+            return RedirectResponse(f"/promo/{promo_id}?err=split", status_code=303)
+        line.ratio_supplier, line.ratio_mg, line.ratio_retailer = s, m, r
+    else:
+        line.ratio_supplier = line.ratio_mg = line.ratio_retailer = None
+    line.pct_off = (_parse_float(form.get("pct_off")) or 0.0) / 100.0
+    line.avg_6wk = _parse_float(form.get("avg_6wk"))
+    line.actual_sales = _parse_float(form.get("actual_sales"))
+    line.growth = _parse_float(form.get("growth"))
+    db.commit()
+    return RedirectResponse(f"/promo/{promo_id}", status_code=303)
+
+
+@app.post("/line/{line_id}/delete")
+def delete_line(line_id: int, db: Session = Depends(get_db)):
+    line = db.get(LineItem, line_id)
+    promo_id = line.promo_retailer.promo_id
+    db.delete(line)
+    db.commit()
+    return RedirectResponse(f"/promo/{promo_id}", status_code=303)
+
+
+# ---- add retailer block to existing promo -----------------------------------
+@app.post("/promo/{promo_id}/retailer")
+async def add_retailer(promo_id: int, request: Request, db: Session = Depends(get_db)):
+    form = await request.form()
+    name = form.get("retailer_name", "").strip()
+    if name:
+        existing = db.scalar(select(Retailer).where(Retailer.name == name))
+        rebate = _parse_float(form.get("rebate"))
+        if rebate is None:
+            rebate = existing.default_rebate if existing else 0.0
+        db.add(PromoRetailer(promo_id=promo_id, retailer_name=name, rebate=rebate))
+        db.commit()
+    return RedirectResponse(f"/promo/{promo_id}", status_code=303)
+
+
+def _remove_attachment_files(promo_retailers):
+    """Best-effort delete of attachment files on disk for the given retailer blocks."""
+    for pr in promo_retailers:
+        for att in pr.attachments:
+            path = os.path.join(UPLOAD_DIR, att.stored_name)
+            if os.path.exists(path):
+                os.remove(path)
+
+
+@app.post("/retailer/{pr_id}/delete")
+def delete_retailer(pr_id: int, db: Session = Depends(get_db)):
+    pr = db.get(PromoRetailer, pr_id)
+    promo_id = pr.promo_id
+    _remove_attachment_files([pr])
+    db.delete(pr)
+    db.commit()
+    return RedirectResponse(f"/promo/{promo_id}", status_code=303)
+
+
+# ---- customer claim (inbound) -----------------------------------------------
+@app.post("/retailer/{pr_id}/claim")
+async def update_claim(pr_id: int, request: Request, db: Session = Depends(get_db)):
+    form = await request.form()
+    pr = db.get(PromoRetailer, pr_id)
+    cc = pr.customer_claim or CustomerClaim(promo_retailer_id=pr_id)
+    cc.amount_claimed = _parse_float(form.get("amount_claimed"))
+    cc.claim_date = _parse_date(form.get("claim_date"))
+    cc.status = form.get("status", "Awaiting Claim")
+    cc.notes = form.get("notes", "").strip()
+    if cc.id is None:
+        db.add(cc)
+    db.commit()
+    return RedirectResponse(f"/promo/{pr.promo_id}", status_code=303)
+
+
+# ---- attachments (files against a customer block) ---------------------------
+@app.post("/retailer/{pr_id}/attach")
+async def upload_attachment(pr_id: int, file: UploadFile = File(...),
+                            db: Session = Depends(get_db)):
+    pr = db.get(PromoRetailer, pr_id)
+    if pr and file and file.filename:
+        ext = os.path.splitext(file.filename)[1]
+        stored = f"{uuid.uuid4().hex}{ext}"
+        dest = os.path.join(UPLOAD_DIR, stored)
+        with open(dest, "wb") as out:
+            shutil.copyfileobj(file.file, out)
+        db.add(Attachment(
+            promo_retailer_id=pr_id,
+            filename=os.path.basename(file.filename),
+            stored_name=stored,
+            content_type=file.content_type or "",
+            size=os.path.getsize(dest),
+        ))
+        db.commit()
+    return RedirectResponse(f"/promo/{pr.promo_id}", status_code=303)
+
+
+@app.get("/attachment/{att_id}")
+def download_attachment(att_id: int, db: Session = Depends(get_db)):
+    att = db.get(Attachment, att_id)
+    if not att:
+        return RedirectResponse("/", status_code=303)
+    path = os.path.join(UPLOAD_DIR, att.stored_name)
+    if not os.path.exists(path):
+        return RedirectResponse(f"/promo/{att.promo_retailer.promo_id}", status_code=303)
+    return FileResponse(path, filename=att.filename,
+                        media_type=att.content_type or "application/octet-stream")
+
+
+@app.post("/attachment/{att_id}/delete")
+def delete_attachment(att_id: int, db: Session = Depends(get_db)):
+    att = db.get(Attachment, att_id)
+    if not att:
+        return RedirectResponse("/", status_code=303)
+    promo_id = att.promo_retailer.promo_id
+    path = os.path.join(UPLOAD_DIR, att.stored_name)
+    if os.path.exists(path):
+        os.remove(path)
+    db.delete(att)
+    db.commit()
+    return RedirectResponse(f"/promo/{promo_id}", status_code=303)
+
+
+# ---- vendor request (outbound) ----------------------------------------------
+@app.post("/promo/{promo_id}/vendor")
+async def update_vendor(promo_id: int, request: Request, db: Session = Depends(get_db)):
+    form = await request.form()
+    promo = db.get(Promotion, promo_id)
+    vr = promo.vendor_request or VendorRequest(promo_id=promo_id)
+    pv = build_promo_view(promo)
+    vr.amount_aud = _parse_float(form.get("amount_aud"))
+    if vr.amount_aud is None:
+        vr.amount_aud = pv.supplier_total_aud
+    vr.amount_usd = _parse_float(form.get("amount_usd")) or (vr.amount_aud * promo.aud_usd_rate)
+    vr.status = form.get("status", "Not Sent")
+    vr.claim_date = _parse_date(form.get("claim_date"))
+    vr.notes = form.get("notes", "").strip()
+    if vr.id is None:
+        db.add(vr)
+    db.commit()
+    return RedirectResponse(f"/promo/{promo_id}", status_code=303)
+
+
+# ---- promo workflow status (setup / approval track) -------------------------
+@app.post("/promo/{promo_id}/status")
+async def update_promo_status(promo_id: int, request: Request, db: Session = Depends(get_db)):
+    form = await request.form()
+    promo = db.get(Promotion, promo_id)
+    if promo:
+        promo.status = form.get("status", promo.status)
+        db.commit()
+    return RedirectResponse(f"/promo/{promo_id}", status_code=303)
+
+
+@app.post("/promo/{promo_id}/details")
+async def update_details(promo_id: int, request: Request, db: Session = Depends(get_db)):
+    """Edit promo header fields after creation (name, claim #, brand, date range)."""
+    form = await request.form()
+    promo = db.get(Promotion, promo_id)
+    if not promo:
+        return RedirectResponse("/", status_code=303)
+    promo.name = form.get("name", "").strip()
+    promo.claim_number = form.get("claim_number", "").strip()
+    promo.brand = form.get("brand", "").strip()
+    sd = _parse_date(form.get("start_date")) or promo.start_date
+    ed = _parse_date(form.get("end_date")) or promo.end_date
+    if ed < sd:
+        return RedirectResponse(f"/promo/{promo_id}?err=dates", status_code=303)
+    promo.start_date = sd
+    promo.end_date = ed
+    rate = _parse_float(form.get("aud_usd_rate"))
+    if rate is not None:
+        promo.aud_usd_rate = rate
+    db.commit()
+    return RedirectResponse(f"/promo/{promo_id}", status_code=303)
+
+
+@app.post("/promo/{promo_id}/delete")
+def delete_promo(promo_id: int, db: Session = Depends(get_db)):
+    promo = db.get(Promotion, promo_id)
+    if promo:
+        _remove_attachment_files(promo.retailers)
+        db.delete(promo)
+        db.commit()
+    return RedirectResponse("/", status_code=303)
+
+
+# ---- excel export ------------------------------------------------------------
+@app.get("/promo/{promo_id}/export/{view}")
+def export_promo(promo_id: int, view: str, db: Session = Depends(get_db)):
+    promo = db.get(Promotion, promo_id)
+    if not promo:
+        return RedirectResponse("/", status_code=303)
+    pv = build_promo_view(promo)
+    if view not in ("internal", "sales", "vendor"):
+        view = "internal"
+    buf = build_workbook(pv, view)
+    fname = f"{(promo.name or 'promo').replace(' ', '_')}_{view}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'})

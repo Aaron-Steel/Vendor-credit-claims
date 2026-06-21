@@ -1,0 +1,142 @@
+"""SQLAlchemy ORM models for the vendor credit claims tool.
+
+Hierarchy:
+    Promotion  (one brand/vendor, a date range, a default funding split)
+      └─ PromoRetailer   (one retailer/customer block within the promo)
+           ├─ LineItem        (a SKU on promo for that retailer)
+           └─ CustomerClaim   (the inbound claim from that customer)
+      └─ VendorRequest        (the outbound credit request to the brand, one per promo)
+
+Reference data: Product (master price list) and Retailer (default rebates).
+"""
+from __future__ import annotations
+
+from datetime import date, datetime
+
+from sqlalchemy import (Boolean, Date, DateTime, Float, ForeignKey, Integer,
+                        String, Text, JSON, func)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from .db import Base
+
+
+class Product(Base):
+    __tablename__ = "products"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String, unique=True, index=True)
+    description: Mapped[str] = mapped_column(String, default="")
+    brand: Mapped[str] = mapped_column(String, default="", index=True)
+    status: Mapped[str] = mapped_column(String, default="")
+    rrp_inc: Mapped[float | None] = mapped_column(Float, nullable=True)
+    channel_prices: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class Retailer(Base):
+    __tablename__ = "retailers"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String, unique=True, index=True)
+    default_rebate: Mapped[float] = mapped_column(Float, default=0.0)
+
+
+class Promotion(Base):
+    __tablename__ = "promotions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    claim_number: Mapped[str] = mapped_column(String, default="", index=True)
+    name: Mapped[str] = mapped_column(String, default="")
+    brand: Mapped[str] = mapped_column(String, default="", index=True)
+    start_date: Mapped[date] = mapped_column(Date)
+    end_date: Mapped[date] = mapped_column(Date)
+    aud_usd_rate: Mapped[float] = mapped_column(Float, default=0.65)
+    # default 3-way funding split (sum should be ~1.0)
+    ratio_retailer: Mapped[float] = mapped_column(Float, default=0.333)
+    ratio_mg: Mapped[float] = mapped_column(Float, default=0.333)
+    ratio_supplier: Mapped[float] = mapped_column(Float, default=0.333)
+    growth_default: Mapped[float] = mapped_column(Float, default=0.2)
+    status: Mapped[str] = mapped_column(String, default="Draft")  # Draft/Sent/Live/Closed
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    retailers: Mapped[list[PromoRetailer]] = relationship(
+        back_populates="promotion", cascade="all, delete-orphan")
+    vendor_request: Mapped[VendorRequest | None] = relationship(
+        back_populates="promotion", cascade="all, delete-orphan", uselist=False)
+
+
+class PromoRetailer(Base):
+    """One retailer/customer block within a promotion."""
+    __tablename__ = "promo_retailers"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    promo_id: Mapped[int] = mapped_column(ForeignKey("promotions.id"))
+    retailer_name: Mapped[str] = mapped_column(String)
+    rebate: Mapped[float] = mapped_column(Float, default=0.0)  # rebate for this block
+
+    promotion: Mapped[Promotion] = relationship(back_populates="retailers")
+    lines: Mapped[list[LineItem]] = relationship(
+        back_populates="promo_retailer", cascade="all, delete-orphan")
+    customer_claim: Mapped[CustomerClaim | None] = relationship(
+        back_populates="promo_retailer", cascade="all, delete-orphan", uselist=False)
+    attachments: Mapped[list[Attachment]] = relationship(
+        back_populates="promo_retailer", cascade="all, delete-orphan")
+
+
+class LineItem(Base):
+    __tablename__ = "line_items"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    promo_retailer_id: Mapped[int] = mapped_column(ForeignKey("promo_retailers.id"))
+    product_code: Mapped[str] = mapped_column(String, default="")
+    description: Mapped[str] = mapped_column(String, default="")
+    rrp_inc: Mapped[float | None] = mapped_column(Float, nullable=True)
+    retailer_buy_ex: Mapped[float] = mapped_column(Float, default=0.0)
+    pct_off: Mapped[float] = mapped_column(Float, default=0.0)
+    avg_6wk: Mapped[float | None] = mapped_column(Float, nullable=True)
+    actual_sales: Mapped[float | None] = mapped_column(Float, nullable=True)  # qty actually claimed
+    # per-line funding overrides (null -> inherit promo defaults)
+    ratio_supplier: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ratio_mg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ratio_retailer: Mapped[float | None] = mapped_column(Float, nullable=True)
+    growth: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    promo_retailer: Mapped[PromoRetailer] = relationship(back_populates="lines")
+
+
+class CustomerClaim(Base):
+    """Inbound claim from a customer for their block of a promo."""
+    __tablename__ = "customer_claims"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    promo_retailer_id: Mapped[int] = mapped_column(ForeignKey("promo_retailers.id"))
+    amount_claimed: Mapped[float | None] = mapped_column(Float, nullable=True)
+    claim_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # see app/workflow.py CLAIM_STATUSES
+    status: Mapped[str] = mapped_column(String, default="Awaiting Claim")
+    notes: Mapped[str] = mapped_column(Text, default="")
+
+    promo_retailer: Mapped[PromoRetailer] = relationship(back_populates="customer_claim")
+
+
+class VendorRequest(Base):
+    """Outbound credit request to the brand/vendor for the whole promo."""
+    __tablename__ = "vendor_requests"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    promo_id: Mapped[int] = mapped_column(ForeignKey("promotions.id"))
+    amount_aud: Mapped[float | None] = mapped_column(Float, nullable=True)
+    amount_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Not Sent / Sent / Approved / Credited
+    status: Mapped[str] = mapped_column(String, default="Not Sent")
+    claim_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    notes: Mapped[str] = mapped_column(Text, default="")
+
+    promotion: Mapped[Promotion] = relationship(back_populates="vendor_request")
+
+
+class Attachment(Base):
+    """A file uploaded against a customer/retailer block (e.g. the claim document)."""
+    __tablename__ = "attachments"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    promo_retailer_id: Mapped[int] = mapped_column(ForeignKey("promo_retailers.id"))
+    filename: Mapped[str] = mapped_column(String)        # original name (for display/download)
+    stored_name: Mapped[str] = mapped_column(String)     # unique name on disk
+    content_type: Mapped[str] = mapped_column(String, default="")
+    size: Mapped[int] = mapped_column(Integer, default=0)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    promo_retailer: Mapped[PromoRetailer] = relationship(back_populates="attachments")

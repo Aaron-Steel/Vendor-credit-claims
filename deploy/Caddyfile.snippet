@@ -1,0 +1,9 @@
+# Add this block to the droplet's existing Caddyfile (the one that already serves n8n),
+# then reload Caddy. Caddy will obtain a Let's Encrypt cert for the subdomain
+# automatically once DNS points at the droplet.
+#
+# Replace claims.yourcompany.com with your real subdomain.
+
+claims.yourcompany.com {
+    reverse_proxy oauth2-proxy:4180
+}

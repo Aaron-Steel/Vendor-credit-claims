@@ -1,0 +1,4 @@
+# Normalise line endings: LF in the repo for text; CRLF only for Windows scripts.
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.xlsx binary

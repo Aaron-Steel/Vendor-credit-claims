@@ -1,0 +1,41 @@
+# Vendor Credit Claims — app + Entra SSO gate, behind the droplet's existing Caddy.
+#
+# Caddy (already running for n8n) reverse-proxies the subdomain to `oauth2-proxy`,
+# which forces Microsoft Entra login and then forwards to `app`. The app is never
+# exposed directly. Run from this deploy/ folder:  docker compose up -d --build
+#
+# Values come from deploy/.env (see .env.example).
+
+services:
+  app:
+    build: ..
+    restart: unless-stopped
+    volumes:
+      - ../data:/app/data        # SQLite db + uploaded files persist here on the host
+    networks: [internal]
+    # no published ports — only reachable via oauth2-proxy on the internal network
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+    restart: unless-stopped
+    env_file: .env              # OAUTH2_PROXY_CLIENT_ID / _SECRET / _COOKIE_SECRET
+    command:
+      - --http-address=0.0.0.0:4180
+      - --reverse-proxy=true
+      - --upstream=http://app:8000
+      - --provider=oidc
+      - --oidc-issuer-url=https://login.microsoftonline.com/${ENTRA_TENANT_ID}/v2.0
+      - --redirect-url=https://${APP_HOSTNAME}/oauth2/callback
+      - --email-domain=${ALLOWED_EMAIL_DOMAIN}
+      - --oidc-email-claim=preferred_username
+      - --scope=openid email profile
+      - --cookie-secure=true
+      - --set-xauthrequest=true   # passes X-Auth-Request-Email to the app (future use)
+      - --skip-provider-button=true
+    networks: [internal, caddy]
+
+networks:
+  internal:
+  caddy:
+    external: true
+    name: ${CADDY_NETWORK}        # the docker network Caddy is already on (see DEPLOY.md)
