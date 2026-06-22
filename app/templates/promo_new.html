@@ -11,6 +11,12 @@
 
 <form method="post" action="/promo/new" class="card form" id="promoform">
   <div class="row">
+    <label>Country
+      <select name="country" id="country">
+        <option value="AU">Australia (GST 10%)</option>
+        <option value="NZ">New Zealand (GST 15%)</option>
+      </select>
+    </label>
     <label>Promotion name
       <input name="name" required placeholder="e.g. Anker EOFY Power Promo">
     </label>
@@ -18,7 +24,7 @@
       <input name="brand" list="brands" placeholder="e.g. ANKER">
       <datalist id="brands">{% for b in brands %}<option value="{{ b }}">{% endfor %}</datalist>
     </label>
-    <label>AU Claim #
+    <label>Claim #
       <input name="claim_number" placeholder="optional">
     </label>
   </div>
@@ -59,12 +65,12 @@
   <fieldset>
     <legend>Retailers in this promotion</legend>
     <p class="hint">Tick each retailer running the promo. Rebate % is pre-filled from the
-       retailer master — adjust if needed.</p>
+       retailer master — adjust if needed. The list shows retailers for the selected country.</p>
     <table class="grid compact">
       <thead><tr><th></th><th>Retailer</th><th class="num">Rebate %</th></tr></thead>
       <tbody>
       {% for r in retailers %}
-        <tr>
+        <tr class="ret-row" data-country="{{ r.country }}">
           <td><input type="checkbox" name="retailer" value="{{ r.name }}" id="r{{ loop.index }}"></td>
           <td><label for="r{{ loop.index }}">{{ r.name }}</label></td>
           <td class="num"><input type="number" step="any" min="0" max="1" name="rebate_{{ r.name }}" value="{{ r.default_rebate }}" style="width:6em"></td>
@@ -92,6 +98,22 @@
   // end date can't precede start date
   function syncDates() { end.min = start.value; }
   start.addEventListener('change', syncDates); syncDates();
+
+  // country: show only that country's retailers; disable the others so their
+  // (same-named) rebate inputs aren't submitted
+  const country = document.getElementById('country');
+  function syncCountry() {
+    const c = country.value;
+    document.querySelectorAll('.ret-row').forEach(function (tr) {
+      const match = tr.dataset.country === c;
+      tr.style.display = match ? '' : 'none';
+      tr.querySelectorAll('input').forEach(function (inp) {
+        inp.disabled = !match;
+        if (!match && inp.type === 'checkbox') inp.checked = false;
+      });
+    });
+  }
+  country.addEventListener('change', syncCountry); syncCountry();
 
   // default support basis: reveal the fields relevant to the chosen method
   const basis = document.getElementById('basis_default');

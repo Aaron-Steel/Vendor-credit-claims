@@ -12,7 +12,8 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .db import Base, UPLOAD_DIR, engine, ensure_schema, get_db, migrate_statuses
+from .db import (Base, UPLOAD_DIR, engine, ensure_schema, get_db,
+                 migrate_statuses, rebuild_reference_tables)
 from .export import build_workbook
 from .models import (Attachment, CustomerClaim, LineItem, Product, PromoRetailer,
                      Promotion, Retailer, VendorRequest)
@@ -20,6 +21,7 @@ from .service import build_promo_view
 from . import workflow
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+rebuild_reference_tables()   # drop legacy products/retailers so they rebuild country-scoped
 Base.metadata.create_all(engine)
 ensure_schema()
 migrate_statuses()
@@ -64,9 +66,11 @@ def _parse_date(v):
 
 # ---- dashboard ---------------------------------------------------------------
 @app.get("/", response_class=HTMLResponse)
-def dashboard(request: Request, brand: str = "", status: str = "",
+def dashboard(request: Request, brand: str = "", status: str = "", country: str = "",
               db: Session = Depends(get_db)):
     q = select(Promotion).order_by(Promotion.created_at.desc())
+    if country:
+        q = q.where(Promotion.country == country)
     if brand:
         q = q.where(Promotion.brand == brand)
     if status:
@@ -93,9 +97,11 @@ def dashboard(request: Request, brand: str = "", status: str = "",
     }
     brands = [b for b in db.scalars(
         select(Promotion.brand).distinct().order_by(Promotion.brand)).all() if b]
+    countries = [c for c in db.scalars(
+        select(Promotion.country).distinct().order_by(Promotion.country)).all() if c]
     return templates.TemplateResponse(request, "dashboard.html", {
-        "rows": rows, "stats": stats, "brands": brands,
-        "sel_brand": brand, "sel_status": status})
+        "rows": rows, "stats": stats, "brands": brands, "countries": countries,
+        "sel_brand": brand, "sel_status": status, "sel_country": country})
 
 
 # ---- help / instructions -----------------------------------------------------
@@ -107,7 +113,8 @@ def help_page(request: Request):
 # ---- create promotion --------------------------------------------------------
 @app.get("/promo/new", response_class=HTMLResponse)
 def new_promo_form(request: Request, db: Session = Depends(get_db)):
-    retailers = db.scalars(select(Retailer).order_by(Retailer.name)).all()
+    retailers = db.scalars(
+        select(Retailer).order_by(Retailer.country, Retailer.name)).all()
     brands = db.scalars(select(Product.brand).distinct().order_by(Product.brand)).all()
     return templates.TemplateResponse(request, "promo_new.html", {
         "retailers": retailers,
@@ -138,10 +145,12 @@ async def create_promo(request: Request, db: Session = Depends(get_db)):
     tgt_default = _parse_float(form.get("target_margin_default"))
     csp_default = _parse_float(form.get("cogs_supplier_pct_default"))
     cmp_default = _parse_float(form.get("cogs_mg_pct_default"))
+    country = (form.get("country") or "AU").upper()
     promo = Promotion(
         claim_number=form.get("claim_number", "").strip(),
         name=form.get("name", "").strip(),
         brand=form.get("brand", "").strip(),
+        country=country,
         start_date=start,
         end_date=end,
         aud_usd_rate=_parse_float(form.get("aud_usd_rate")) or 0.65,
@@ -173,7 +182,8 @@ def promo_detail(promo_id: int, request: Request, view: str = "internal",
     if not promo:
         return RedirectResponse("/", status_code=303)
     pv = build_promo_view(promo)
-    retailers = db.scalars(select(Retailer).order_by(Retailer.name)).all()
+    retailers = db.scalars(select(Retailer).where(Retailer.country == promo.country)
+                           .order_by(Retailer.name)).all()
     if view not in ("internal", "sales", "vendor"):
         view = "internal"
     return templates.TemplateResponse(request, "promo_detail.html", {
@@ -183,8 +193,10 @@ def promo_detail(promo_id: int, request: Request, view: str = "internal",
 
 # ---- product lookup (autofill) ----------------------------------------------
 @app.get("/api/product/{code}")
-def product_lookup(code: str, retailer: str = "", db: Session = Depends(get_db)):
-    p = db.scalar(select(Product).where(Product.code == code))
+def product_lookup(code: str, retailer: str = "", country: str = "AU",
+                   db: Session = Depends(get_db)):
+    p = db.scalar(select(Product).where(Product.code == code,
+                                        Product.country == country.upper()))
     if not p:
         return JSONResponse({"found": False})
     buy = p.channel_prices.get(retailer) if retailer else None
@@ -325,7 +337,10 @@ async def add_retailer(promo_id: int, request: Request, db: Session = Depends(ge
     form = await request.form()
     name = form.get("retailer_name", "").strip()
     if name:
-        existing = db.scalar(select(Retailer).where(Retailer.name == name))
+        promo = db.get(Promotion, promo_id)
+        country = promo.country if promo else "AU"
+        existing = db.scalar(select(Retailer).where(
+            Retailer.name == name, Retailer.country == country))
         rebate = _parse_float(form.get("rebate"))
         if rebate is None:
             rebate = existing.default_rebate if existing else 0.0

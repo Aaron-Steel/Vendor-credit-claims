@@ -6,3 +6,7 @@ data/
 # never commit real secrets
 .env
 deploy/.env
+# sample/illustrative spreadsheets (not needed for seeding)
+%OFFCOGS*.xlsx
+# Excel lock/temp files
+~$*

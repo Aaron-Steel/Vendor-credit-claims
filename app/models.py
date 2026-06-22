@@ -14,7 +14,7 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from sqlalchemy import (Boolean, Date, DateTime, Float, ForeignKey, Integer,
-                        String, Text, JSON, func)
+                        String, Text, JSON, UniqueConstraint, func)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -22,8 +22,10 @@ from .db import Base
 
 class Product(Base):
     __tablename__ = "products"
+    __table_args__ = (UniqueConstraint("code", "country", name="uq_product_code_country"),)
     id: Mapped[int] = mapped_column(primary_key=True)
-    code: Mapped[str] = mapped_column(String, unique=True, index=True)
+    code: Mapped[str] = mapped_column(String, index=True)
+    country: Mapped[str] = mapped_column(String, default="AU", index=True)  # AU / NZ
     description: Mapped[str] = mapped_column(String, default="")
     brand: Mapped[str] = mapped_column(String, default="", index=True)
     status: Mapped[str] = mapped_column(String, default="")
@@ -33,8 +35,10 @@ class Product(Base):
 
 class Retailer(Base):
     __tablename__ = "retailers"
+    __table_args__ = (UniqueConstraint("name", "country", name="uq_retailer_name_country"),)
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String, unique=True, index=True)
+    name: Mapped[str] = mapped_column(String, index=True)
+    country: Mapped[str] = mapped_column(String, default="AU", index=True)  # AU / NZ
     default_rebate: Mapped[float] = mapped_column(Float, default=0.0)
 
 
@@ -44,6 +48,7 @@ class Promotion(Base):
     claim_number: Mapped[str] = mapped_column(String, default="", index=True)
     name: Mapped[str] = mapped_column(String, default="")
     brand: Mapped[str] = mapped_column(String, default="", index=True)
+    country: Mapped[str] = mapped_column(String, default="AU", index=True)  # AU / NZ
     start_date: Mapped[date] = mapped_column(Date)
     end_date: Mapped[date] = mapped_column(Date)
     aud_usd_rate: Mapped[float] = mapped_column(Float, default=0.65)

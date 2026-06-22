@@ -134,8 +134,13 @@
 <div class="card help">
   <h2>Good to know</h2>
   <ul>
-    <li><strong>Money is AUD, ex-GST</strong> unless a field is explicitly labelled USD. RRP is shown
-      GST-inclusive (the GST factor is 1.1).</li>
+    <li><strong>Country (AU / NZ)</strong> — chosen when the promo is created. It sets the GST
+      factor (AU 10% → ÷1.1, NZ 15% → ÷1.15), filters the retailer and product lists to that
+      country (Harvey Norman AU and NZ are separate, with their own pricing), and labels amounts
+      in the local currency. NZ "% off" support is calculated on the gross buy ex (rebate not
+      deducted); AU deducts the rebate first.</li>
+    <li><strong>Money is local currency, ex-GST</strong> (AUD or NZD per the promo's country)
+      unless a field is explicitly labelled USD. RRP is shown GST-inclusive.</li>
     <li><strong>% off is entered as a percent</strong> (e.g. <code>15</code> for 15%).</li>
     <li><strong>Editing the promo header</strong> — name, claim #, dates and the AUD→USD rate can be
       changed after creation from the promo page.</li>

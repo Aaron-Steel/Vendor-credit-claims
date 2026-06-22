@@ -6,7 +6,8 @@ never stored — always derived here so they stay correct when inputs change.
 """
 from dataclasses import dataclass
 
-from .calc import LineInputs, LineResult, compute_line, weeks_between
+from .calc import (LineInputs, LineResult, compute_line, country_params,
+                   weeks_between)
 from .models import LineItem, PromoRetailer, Promotion
 
 
@@ -70,6 +71,7 @@ def _line_inputs(line: LineItem, pr: PromoRetailer, promo: Promotion) -> LineInp
 
 def build_promo_view(promo: Promotion) -> PromoView:
     weeks = weeks_between(promo.start_date, promo.end_date)
+    gst, pct_off_on_net = country_params(promo.country)
     retailer_views: list[RetailerView] = []
     supplier_aud = mg_aud = cust_expected = 0.0
     a_supplier_aud = a_mg_aud = a_cust_aud = 0.0
@@ -81,7 +83,8 @@ def build_promo_view(promo: Promotion) -> PromoView:
         a_supplier = a_mg = a_support = 0.0
         has_actuals = False
         for line in pr.lines:
-            res = compute_line(_line_inputs(line, pr, promo), weeks)
+            res = compute_line(_line_inputs(line, pr, promo), weeks,
+                               gst=gst, pct_off_on_net=pct_off_on_net)
             line_views.append(LineView(line=line, result=res))
             r_supplier += res.supplier_claim or 0.0
             r_mg += res.mg_claim or 0.0

@@ -31,8 +31,27 @@ _ADDED_COLUMNS = {
     "promotions": {"support_basis_default": "VARCHAR",
                    "target_margin_default": "FLOAT",
                    "cogs_supplier_pct_default": "FLOAT",
-                   "cogs_mg_pct_default": "FLOAT"},
+                   "cogs_mg_pct_default": "FLOAT",
+                   "country": "VARCHAR DEFAULT 'AU'"},
 }
+
+# Reference tables that are fully re-seeded each startup. If they exist WITHOUT the
+# named column (i.e. an old schema), drop them so create_all() rebuilds with the new
+# (country-scoped) shape. Safe: promos store product_code / retailer_name as strings,
+# not foreign keys, so existing promotions are unaffected.
+_REFERENCE_REBUILD = {"products": "country", "retailers": "country"}
+
+
+def rebuild_reference_tables():
+    """Drop reference tables whose schema predates a structural change (idempotent)."""
+    insp = inspect(engine)
+    tables = set(insp.get_table_names())
+    with engine.begin() as conn:
+        for table, needed_col in _REFERENCE_REBUILD.items():
+            if table in tables:
+                cols = {c["name"] for c in insp.get_columns(table)}
+                if needed_col not in cols:
+                    conn.execute(text(f"DROP TABLE {table}"))
 
 
 def ensure_schema():

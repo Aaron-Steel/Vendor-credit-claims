@@ -6,7 +6,7 @@ Run:  python -m app.seed
 import json
 import os
 
-from .db import Base, DATA_DIR, SessionLocal, engine
+from .db import Base, DATA_DIR, SessionLocal, engine, rebuild_reference_tables
 from .models import Product, Retailer
 
 
@@ -20,22 +20,26 @@ def load_json(name):
 
 
 def seed():
+    rebuild_reference_tables()   # drop legacy (pre-country) products/retailers if present
     Base.metadata.create_all(engine)
     db = SessionLocal()
     try:
         retailers = load_json("seed_retailers.json")
-        existing_r = {r.name: r for r in db.query(Retailer).all()}
+        existing_r = {(r.name, r.country): r for r in db.query(Retailer).all()}
         for row in retailers:
-            r = existing_r.get(row["name"])
+            country = row.get("country", "AU")
+            r = existing_r.get((row["name"], country))
             if r:
                 r.default_rebate = row["rebate"]
             else:
-                db.add(Retailer(name=row["name"], default_rebate=row["rebate"]))
+                db.add(Retailer(name=row["name"], country=country,
+                                default_rebate=row["rebate"]))
 
         products = load_json("seed_products.json")
-        existing_p = {p.code: p for p in db.query(Product).all()}
+        existing_p = {(p.code, p.country): p for p in db.query(Product).all()}
         for row in products:
-            p = existing_p.get(row["code"])
+            country = row.get("country", "AU")
+            p = existing_p.get((row["code"], country))
             if p:
                 p.description = row["description"]
                 p.brand = row["brand"]
@@ -44,7 +48,7 @@ def seed():
                 p.channel_prices = row["channel_prices"]
             else:
                 db.add(Product(
-                    code=row["code"], description=row["description"],
+                    code=row["code"], country=country, description=row["description"],
                     brand=row["brand"], status=row["status"],
                     rrp_inc=row["rrp_inc"], channel_prices=row["channel_prices"]))
         db.commit()

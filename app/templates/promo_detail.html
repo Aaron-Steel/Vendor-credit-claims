@@ -2,6 +2,7 @@
 {% block title %}{{ promo.name }}{% endblock %}
 {% block content %}
 {% set editable = (view == 'internal') %}
+{% set cur = 'NZD' if promo.country == 'NZ' else 'AUD' %}
 
 {% if request.query_params.get('err') == 'split' %}
 <div class="banner error">Funding split not saved — Supplier + MacGear must each be 0 or more and total no more than 1 (Retailer takes the remainder).</div>
@@ -13,7 +14,8 @@
   <div>
     <h1>{{ promo.name or "(untitled promotion)" }}
       <span class="pill pg-{{ PILL_GROUP.get(promo.status,'grey') }}">{{ promo.status }}</span></h1>
-    <p class="sub">{{ promo.brand }} · {{ promo.start_date }} → {{ promo.end_date }}
+    <p class="sub"><span class="pill pg-blue">{{ promo.country or 'AU' }}</span>
+       {{ promo.brand }} · {{ promo.start_date }} → {{ promo.end_date }}
        ({{ pv.weeks|round(1) }} wks){% if promo.claim_number %} · Claim #{{ promo.claim_number }}{% endif %}
        {% if editable %}<button type="button" class="link" onclick="toggleEdit('details')">✎ edit details</button>{% endif %}</p>
   </div>
@@ -33,7 +35,7 @@
     <label>Claim # <input name="claim_number" value="{{ promo.claim_number }}"></label>
     <label>Start date <input type="date" name="start_date" id="d_start" value="{{ promo.start_date }}"></label>
     <label>End date <input type="date" name="end_date" id="d_end" value="{{ promo.end_date }}"></label>
-    <label>AUD→USD rate <input type="number" step="0.0001" min="0.0001" name="aud_usd_rate" value="{{ promo.aud_usd_rate }}" style="width:7em"></label>
+    <label>{{ cur }}→USD rate <input type="number" step="0.0001" min="0.0001" name="aud_usd_rate" value="{{ promo.aud_usd_rate }}" style="width:7em"></label>
     <label>Default support basis
       <select name="support_basis_default" id="d_basis">
         <option value="pct_off" {{ 'selected' if (promo.support_basis_default or 'pct_off') == 'pct_off' }}>% off (discount)</option>
@@ -57,7 +59,7 @@
   {% if view != 'vendor' %}
   <div class="kpi"><span>MacGear absorbs</span><strong>${{ pv.mg_total_aud|money }}</strong></div>
   {% endif %}
-  <div class="kpi accent"><span>Vendor claim (AUD)</span><strong>${{ pv.supplier_total_aud|money }}</strong></div>
+  <div class="kpi accent"><span>Vendor claim ({{ cur }})</span><strong>${{ pv.supplier_total_aud|money }}</strong></div>
   <div class="kpi"><span>Vendor claim (USD @ {{ promo.aud_usd_rate }})</span><strong>${{ pv.supplier_total_usd|money }}</strong></div>
 </section>
 
@@ -347,10 +349,10 @@
     <span class="pill pg-{{ PILL_GROUP.get(vstatus,'grey') }}">{{ vstatus }}</span>
     <span class="nexthint">→ {{ VENDOR_NEXT.get(vstatus, '') }}</span>
   </h3>
-  <p class="hint">Calculated supplier claim: <strong>${{ pv.supplier_total_aud|money }}</strong> AUD
+  <p class="hint">Calculated supplier claim: <strong>${{ pv.supplier_total_aud|money }}</strong> {{ cur }}
     / <strong>${{ pv.supplier_total_usd|money }}</strong> USD. Leave amount blank to use the calculated value.</p>
   <form method="post" action="/promo/{{ promo.id }}/vendor" class="inline-form">
-    <label>Amount AUD <input name="amount_aud" type="number" step="any"
+    <label>Amount {{ cur }} <input name="amount_aud" type="number" step="any"
       value="{{ vr.amount_aud if vr and vr.amount_aud is not none else '' }}" style="width:9em"></label>
     <label>Amount USD <input name="amount_usd" type="number" step="any"
       value="{{ vr.amount_usd if vr and vr.amount_usd is not none else '' }}" style="width:9em"></label>
@@ -384,13 +386,14 @@ function toggleEdit(id) {
   }
 }
 // autofill description / RRP / buy-ex when a SKU code is entered
+const PROMO_COUNTRY = "{{ promo.country or 'AU' }}";
 document.querySelectorAll('.inline-form .code').forEach(function (input) {
   input.addEventListener('change', async function () {
     const form = input.closest('form');
     const retailer = encodeURIComponent(form.dataset.retailer || '');
     const code = input.value.trim();
     if (!code) return;
-    const res = await fetch(`/api/product/${encodeURIComponent(code)}?retailer=${retailer}`);
+    const res = await fetch(`/api/product/${encodeURIComponent(code)}?retailer=${retailer}&country=${PROMO_COUNTRY}`);
     const d = await res.json();
     if (!d.found) return;
     if (form.description && !form.description.value) form.description.value = d.description || '';

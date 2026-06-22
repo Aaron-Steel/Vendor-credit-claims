@@ -15,7 +15,7 @@ from datetime import date
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.calc import LineInputs, compute_line, weeks_between
+from app.calc import LineInputs, compute_line, country_params, weeks_between
 
 
 def test_anker_officeworks_line():
@@ -96,10 +96,39 @@ def test_cogs_basis_pct_off_cost():
     assert abs(hn.total_support - 20.5) < 1e-9
 
 
+def test_country_params():
+    assert country_params("AU") == (1.1, True)
+    assert country_params("NZ") == (1.15, False)
+    assert country_params("") == (1.1, True)   # default
+
+
+def test_nz_pct_off_uses_gross_buy_and_115_gst():
+    """NZ template: support = GROSS buy ex x %off x ratio (rebate NOT applied),
+    and margins divide by 1.15. AU on the same inputs uses net buy and /1.1."""
+    args = dict(retailer_buy_ex=100.0, rebate=0.17, pct_off=0.10,
+                ratio_supplier=0.5, ratio_mg=0.5, ratio_retailer=0.0, rrp_inc=230.0)
+    gst_nz, on_net_nz = country_params("NZ")
+    nz = compute_line(LineInputs(**args), weeks=2, gst=gst_nz, pct_off_on_net=on_net_nz)
+    # gross buy 100 * 10% = 10 total support, split 5/5 (rebate ignored)
+    assert abs(nz.supplier_support - 5.0) < 1e-9
+    assert abs(nz.mg_support - 5.0) < 1e-9
+    assert abs(nz.total_support - 10.0) < 1e-9
+    # std margin uses /1.15: (230/1.15 - 83) / (230/1.15) = (200-83)/200
+    assert abs(nz.std_margin - (200.0 - 83.0) / 200.0) < 1e-9
+
+    # AU on the same inputs: net buy 83 * 10% = 8.3, and /1.1
+    gst_au, on_net_au = country_params("AU")
+    au = compute_line(LineInputs(**args), weeks=2, gst=gst_au, pct_off_on_net=on_net_au)
+    assert abs(au.total_support - 8.3) < 1e-9
+    assert abs(au.std_margin - ((230.0 / 1.1) - 83.0) / (230.0 / 1.1)) < 1e-9
+
+
 if __name__ == "__main__":
     test_anker_officeworks_line()
     test_expected_sales_and_claims()
     test_margin_basis_back_solves_support()
     test_margin_basis_falls_back_without_target()
     test_cogs_basis_pct_off_cost()
+    test_country_params()
+    test_nz_pct_off_uses_gross_buy_and_115_gst()
     print("All calc tests passed.")

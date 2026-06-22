@@ -5,7 +5,7 @@
   <a class="btn" href="/promo/new">+ New Promotion</a>
 </div>
 
-{% if stats.count == 0 and not sel_brand and not sel_status %}
+{% if stats.count == 0 and not sel_brand and not sel_status and not sel_country %}
   <div class="empty">
     <p>No promotions yet.</p>
     <a class="btn" href="/promo/new">Create your first promotion</a>
@@ -41,6 +41,12 @@
 </section>
 
 <form method="get" action="/" class="filterbar">
+  <label>Country
+    <select name="country">
+      <option value="">All countries</option>
+      {% for c in countries %}<option value="{{ c }}" {{ 'selected' if sel_country==c }}>{{ c }}</option>{% endfor %}
+    </select>
+  </label>
   <label>Brand
     <select name="brand">
       <option value="">All brands</option>
@@ -54,7 +60,7 @@
     </select>
   </label>
   <button class="btn small">Filter</button>
-  {% if sel_brand or sel_status %}<a href="/" class="clear">clear</a>{% endif %}
+  {% if sel_brand or sel_status or sel_country %}<a href="/" class="clear">clear</a>{% endif %}
   <span class="filter-count">{{ rows|length }} shown</span>
 </form>
 
@@ -64,10 +70,10 @@
 <table class="grid">
   <thead>
     <tr>
-      <th>Claim #</th><th>Promotion</th><th>Brand</th><th>Dates</th>
+      <th>Claim #</th><th>Promotion</th><th>Country</th><th>Brand</th><th>Dates</th>
       <th>Retailers</th>
       <th class="num">Cust. expected</th>
-      <th class="num">Vendor claim (AUD)</th>
+      <th class="num">Vendor claim</th>
       <th>Customer claims</th>
       <th>Vendor request</th>
       <th></th>
@@ -80,6 +86,7 @@
       <td>{{ p.claim_number }}</td>
       <td><a href="/promo/{{ p.id }}"><strong>{{ p.name or "(untitled)" }}</strong></a>
           <span class="pill pg-{{ PILL_GROUP.get(p.status,'grey') }}">{{ p.status }}</span></td>
+      <td><span class="pill pg-blue">{{ p.country or 'AU' }}</span></td>
       <td>{{ p.brand }}</td>
       <td>{{ p.start_date }} → {{ p.end_date }}</td>
       <td>{{ r.retailers|length }}</td>

@@ -39,7 +39,20 @@ import math
 from dataclasses import dataclass
 from datetime import date
 
-GST = 1.1  # AU GST gross-up divisor
+GST = 1.1  # default (AU) GST gross-up divisor
+
+# Per-country calc parameters (from the AU vs NZ promo templates):
+#   gst             - GST gross-up divisor (AU 10%, NZ 15%)
+#   pct_off_on_net  - in "% off" mode, apply % off to NET buy (after rebate, AU)
+#                     or to the GROSS buy ex (NZ). Margins always use net buy.
+COUNTRY_GST = {"AU": 1.1, "NZ": 1.15}
+COUNTRY_PCT_OFF_ON_NET = {"AU": True, "NZ": False}
+
+
+def country_params(country: str) -> tuple[float, bool]:
+    """Return (gst, pct_off_on_net) for a country code, defaulting to AU."""
+    c = (country or "AU").upper()
+    return COUNTRY_GST.get(c, 1.1), COUNTRY_PCT_OFF_ON_NET.get(c, True)
 
 
 def weeks_between(start: date, end: date) -> float:
@@ -83,7 +96,8 @@ class LineResult:
     actual_mg_claim: float | None
 
 
-def compute_line(i: LineInputs, weeks: float) -> LineResult:
+def compute_line(i: LineInputs, weeks: float, gst: float = GST,
+                 pct_off_on_net: bool = True) -> LineResult:
     net_buy = i.retailer_buy_ex * (1 - i.rebate)
     rec_sale_inc = i.rrp_inc * (1 - i.pct_off) if i.rrp_inc else None
 
@@ -91,7 +105,7 @@ def compute_line(i: LineInputs, weeks: float) -> LineResult:
         # margin-driven: back-solve total support to hit the target promo margin,
         # then split it across supplier/MG by their ratios. (% off still sets the
         # promo sale price above; the retailer share isn't part of this total.)
-        total_support = net_buy - (1 - i.target_margin) * rec_sale_inc / GST
+        total_support = net_buy - (1 - i.target_margin) * rec_sale_inc / gst
         denom = i.ratio_supplier + i.ratio_mg
         supplier_support = total_support * i.ratio_supplier / denom if denom else 0.0
         mg_support = total_support * i.ratio_mg / denom if denom else 0.0
@@ -105,20 +119,22 @@ def compute_line(i: LineInputs, weeks: float) -> LineResult:
         total_support = supplier_support + mg_support
         total_support_unit = total_support
     else:
-        # discount-driven (standard template): support = net buy x % off x ratio
-        total_support_unit = net_buy * i.pct_off
+        # discount-driven: support = buy x % off x ratio. AU applies % off to net
+        # buy (after rebate); NZ applies it to the gross buy ex (pct_off_on_net=False).
+        base_buy = net_buy if pct_off_on_net else i.retailer_buy_ex
+        total_support_unit = base_buy * i.pct_off
         supplier_support = total_support_unit * i.ratio_supplier
         mg_support = total_support_unit * i.ratio_mg
         total_support = supplier_support + mg_support
 
     std_margin = None
     if i.rrp_inc:
-        base = i.rrp_inc / GST
+        base = i.rrp_inc / gst
         std_margin = (base - net_buy) / base if base else None
 
     promo_margin = None
     if rec_sale_inc:
-        base = rec_sale_inc / GST
+        base = rec_sale_inc / gst
         promo_margin = (base + total_support - net_buy) / base if base else None
 
     expected_sales = None
