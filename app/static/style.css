@@ -49,7 +49,7 @@ a:hover{text-decoration:underline}
   width:34px;height:34px;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
 .theme-toggle:hover{background:rgba(255,255,255,.3)}
 
-main{max-width:1240px;margin:1.5rem auto;padding:0 1.2rem}
+main{max-width:1680px;margin:1.5rem auto;padding:0 1.2rem}
 h1{margin:.2rem 0}
 h2{margin:.2rem 0;font-size:1.15rem}
 h3{margin:.6rem 0;font-size:1rem}
@@ -111,9 +111,11 @@ table.grid .num{text-align:right;font-variant-numeric:tabular-nums}
 table.grid.compact td,table.grid.compact th{padding:.25rem .5rem}
 table.lines tfoot .totrow td{border-top:2px solid var(--line);font-weight:700;background:#f7f9fc}
 .lines-wrap{overflow-x:auto;max-width:100%}
-table.lines{width:auto;min-width:100%}
+/* compact line tables so the many columns fit the wider container without scrolling */
+table.lines{width:auto;min-width:100%;font-size:.8rem}
+table.lines th,table.lines td{padding:.3rem .45rem}
 table.lines th,table.lines td.num{white-space:nowrap}
-table.lines td:nth-child(2){white-space:normal;min-width:150px}
+table.lines td:nth-child(2){white-space:normal;min-width:130px}
 
 .head-row{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap}
 .views{display:flex;gap:.4rem;align-items:center}
