@@ -420,14 +420,13 @@ function wirePromoPrice(form) {
   const pp = form.querySelector('.pp');
   if (!rrp || !pct || !pp) return;
   const r2 = x => Math.round(x * 100) / 100;
-  const r4 = x => Math.round(x * 1e4) / 1e4;
   function priceFromPct() {       // % off (or RRP) changed -> set promo price
     const R = parseFloat(rrp.value), P = parseFloat(pct.value);
     if (!isNaN(R) && !isNaN(P)) pp.value = r2(R * (1 - P / 100));
   }
   function pctFromPrice() {        // promo price changed -> set % off
     const R = parseFloat(rrp.value), PP = parseFloat(pp.value);
-    if (!isNaN(R) && R > 0 && !isNaN(PP)) pct.value = r4((1 - PP / R) * 100);
+    if (!isNaN(R) && R > 0 && !isNaN(PP)) pct.value = r2((1 - PP / R) * 100);
   }
   pct.addEventListener('input', priceFromPct);
   rrp.addEventListener('input', priceFromPct);
