@@ -77,44 +77,35 @@ The endpoint rejects every call unless this is set and matched.
 
 ---
 
-## 4. Build the n8n workflow
+## 4. Build the n8n workflow (Code node — do NOT use n8n's OAuth1 credential)
 
-Create a workflow with these nodes:
+n8n's built-in **OAuth1 API** credential does **not** fit NetSuite TBA — it's for the
+3-legged OAuth1 handshake and offers no realm field and only HMAC-SHA1. NetSuite TBA needs
+a pre-issued token, the **realm** (Account ID), and **HMAC-SHA256**. So we sign the request
+ourselves in a **Code node**, which also does the POST to the app — one node, no auth UI.
+
+Two nodes total:
 
 1. **Schedule Trigger** — e.g. daily at 06:00.
+2. **Code node** (mode: *Run Once for All Items*) — paste `netsuite/n8n_sync_code_node.js`
+   from this repo and fill in the constants at the top:
+   - `ACCOUNT_ID` (Setup → Company → Company Information → **ACCOUNT ID**)
+   - `CONSUMER_KEY` / `CONSUMER_SECRET` (from the Integration record, step 2)
+   - `TOKEN_ID` / `TOKEN_SECRET` (from the Access Token, step 2)
+   - `RESTLET_SCRIPT` / `RESTLET_DEPLOY` (the `script=` and `deploy=` numbers in the RESTlet
+     deployment URL from step 1)
+   - `SYNC_TOKEN` (the `PRICING_SYNC_TOKEN` from step 3)
 
-2. **HTTP Request — "NetSuite AU"**
-   - Method **GET**, URL = the RESTlet URL **+** `&searchId=customsearch1084`
-   - Authentication: **Generic Credential → OAuth1**
-     - Consumer Key / Secret, Access Token (= Token ID) / Token Secret from step 2
-     - Signature Method: **HMAC-SHA256**
-     - Realm: your **Account ID** from step 2
-   - Response: JSON. The body is the array of rows.
+   It signs OAuth1, pulls both searches (`customsearch1084` AU, `customsearch1413` NZ) via
+   the RESTlet, and POSTs each to `http://claims:8000/admin/sync-pricing`. The node returns
+   one summary per country, e.g. `{"country":"AU","received":1760,"inserted":3,"updated":1757,"pruned":2}`.
 
-3. **HTTP Request — "Sync AU"**
-   - Method **POST**, URL = `http://claims:8000/admin/sync-pricing`
-     (n8n and the app share the Docker network, so this internal name works — no Caddy,
-     no basic-auth. If your n8n runs outside that network, use
-     `https://promos.macgeargroup.com/admin/sync-pricing` and add the site's basic-auth too.)
-   - Headers: `X-Sync-Token: <the PRICING_SYNC_TOKEN value>`
-   - Body: **JSON**, using an expression that wraps the previous node's rows:
-     ```
-     { "country": "AU", "rows": {{ $json }} }
-     ```
-     (If the AU node returns the array under `$json.body`, use `{{ $json.body }}`.)
+   `http://claims:8000` works because n8n and the app share the Docker network (no Caddy, no
+   basic-auth). If your n8n runs elsewhere, set `APP_URL` to
+   `https://promos.macgeargroup.com/admin/sync-pricing` and add the site's basic-auth header.
 
-4. **HTTP Request — "NetSuite NZ"** — same as #2 but `&searchId=customsearch1413`.
-
-5. **HTTP Request — "Sync NZ"** — same as #3 but `"country": "NZ"`.
-
-Wire 1→2→3→4→5 (or run AU and NZ branches in parallel). Each Sync node returns a
-summary like `{"country":"AU","received":1760,"inserted":3,"updated":1757}` — handy to
-log or alert on.
-
-> **n8n OAuth1 + NetSuite note:** NetSuite TBA requires the **realm** (Account ID) in
-> the OAuth header and **HMAC-SHA256**. If your n8n's OAuth1 credential has no Realm
-> field, either use the community **n8n-nodes-netsuite** node, or compute the OAuth1
-> header in a Code node. Ping me and I'll hand you the Code-node snippet.
+> Prefer not to store secrets in the node? Set them as environment variables on the n8n
+> container and replace each constant with e.g. `$env.NETSUITE_CONSUMER_KEY`.
 
 ---
 
