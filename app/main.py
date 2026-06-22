@@ -78,6 +78,36 @@ def get_live_fx():
     return _FX_CACHE["rates"]
 
 
+# Retailer names (from the validation list) don't always match the price-column labels
+# in the master (esp. NZ: "Noel Leeming" vs "NZ - Noel Leeming", "JB HIFI" vs "JB HIfi",
+# "PB Tech" vs "NZ - PB Technologies"). Match tolerantly so buy-price autofill works.
+_CHANNEL_ALIASES = {"pbtech": "pbtechnologies", "costcowholesale": "costco"}
+
+
+def _norm_channel(s):
+    s = (s or "").lower().strip()
+    for p in ("nz au - ", "nz - ", "au - "):
+        if s.startswith(p):
+            s = s[len(p):]
+            break
+    return "".join(c for c in s if c.isalnum())
+
+
+def _channel_price(channel_prices, retailer):
+    """Look up a retailer's buy price in a product's channel_prices, tolerating
+    naming differences between the retailer list and the price-column labels."""
+    if not channel_prices or not retailer:
+        return None
+    if retailer in channel_prices:               # exact match (fast path)
+        return channel_prices[retailer]
+    target = _norm_channel(retailer)
+    target = _CHANNEL_ALIASES.get(target, target)
+    for key, val in channel_prices.items():
+        if _norm_channel(key) == target:
+            return val
+    return None
+
+
 def _parse_float(v):
     try:
         return float(v) if v not in (None, "") else None
@@ -251,7 +281,7 @@ def product_lookup(code: str, retailer: str = "", country: str = "AU",
                                         Product.country == country.upper()))
     if not p:
         return JSONResponse({"found": False})
-    buy = p.channel_prices.get(retailer) if retailer else None
+    buy = _channel_price(p.channel_prices, retailer) if retailer else None
     return JSONResponse({"found": True, "code": p.code, "description": p.description,
                          "brand": p.brand, "rrp_inc": p.rrp_inc, "retailer_buy_ex": buy})
 
@@ -315,7 +345,7 @@ async def copy_lines(pr_id: int, request: Request, db: Session = Depends(get_db)
         prod = db.scalar(select(Product).where(Product.code == src.product_code)) if src.product_code else None
         buy = None
         if prod and prod.channel_prices:
-            buy = prod.channel_prices.get(target.retailer_name)
+            buy = _channel_price(prod.channel_prices, target.retailer_name)
         db.add(LineItem(
             promo_retailer_id=target.id,
             product_code=src.product_code,
