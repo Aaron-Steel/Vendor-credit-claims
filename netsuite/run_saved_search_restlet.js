@@ -5,8 +5,9 @@
  * level searches headlessly. Each row is keyed by the search column's label,
  * matching exactly what the saved search shows (and what the app's importer expects).
  *
- * Call (GET):  <restlet-url>&searchId=customsearch1084
- * Returns:     [ { "Code": "...", "Base (RRP Inc)": "169.99", "JB HIFI": "...", ... }, ... ]
+ * Call (POST):  body { "searchId": "customsearch1084" }  (POST is more reliable than GET
+ *               for NetSuite RESTlets; handle() reads searchId from the body or query).
+ * Returns:      [ { "Code": "...", "Base (RRP Inc)": "169.99", "JB HIFI": "...", ... }, ... ]
  *
  * @NApiVersion 2.1
  * @NScriptType Restlet

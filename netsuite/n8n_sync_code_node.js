@@ -55,13 +55,18 @@ function authHeader(method, baseUrl, queryParams) {
 
 const out = [];
 for (const s of SEARCHES) {
-  const query = { script: RESTLET_SCRIPT, deploy: RESTLET_DEPLOY, searchId: s.searchId };
+  // Call the RESTlet with POST + JSON body. NetSuite RESTlets mishandle GET from many
+  // HTTP clients (it errors before the script runs), so POST is the reliable shape.
+  // searchId goes in the body; only script/deploy are query params (and signed).
+  const query = { script: RESTLET_SCRIPT, deploy: RESTLET_DEPLOY };
   const url = RESTLET_BASE + '?' + Object.keys(query)
     .map((k) => pct(k) + '=' + pct(query[k])).join('&');
 
   const nsResp = await helpers.httpRequest({
-    method: 'GET', url,
-    headers: { Authorization: authHeader('GET', RESTLET_BASE, query) },
+    method: 'POST', url,
+    headers: { Authorization: authHeader('POST', RESTLET_BASE, query),
+               'Content-Type': 'application/json' },
+    body: { searchId: s.searchId },
     json: true, returnFullResponse: true, ignoreHttpStatusErrors: true,
   });
   const rows = nsResp.body;
