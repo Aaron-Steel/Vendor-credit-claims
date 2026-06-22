@@ -19,6 +19,34 @@ def load_json(name):
         return json.load(f)
 
 
+def upsert_products(db, products):
+    """Insert/update products keyed by (code, country). Returns (inserted, updated).
+
+    Shared by the template seed and the NetSuite pricing sync. Does not commit.
+    """
+    existing = {(p.code, p.country): p for p in db.query(Product).all()}
+    inserted = updated = 0
+    for row in products:
+        country = row.get("country", "AU")
+        p = existing.get((row["code"], country))
+        if p:
+            p.description = row["description"]
+            p.brand = row["brand"]
+            p.status = row["status"]
+            p.rrp_inc = row["rrp_inc"]
+            p.channel_prices = row["channel_prices"]
+            updated += 1
+        else:
+            p = Product(
+                code=row["code"], country=country, description=row["description"],
+                brand=row["brand"], status=row["status"],
+                rrp_inc=row["rrp_inc"], channel_prices=row["channel_prices"])
+            db.add(p)
+            existing[(row["code"], country)] = p
+            inserted += 1
+    return inserted, updated
+
+
 def seed():
     rebuild_reference_tables()   # drop legacy (pre-country) products/retailers if present
     Base.metadata.create_all(engine)
@@ -35,22 +63,14 @@ def seed():
                 db.add(Retailer(name=row["name"], country=country,
                                 default_rebate=row["rebate"]))
 
-        products = load_json("seed_products.json")
-        existing_p = {(p.code, p.country): p for p in db.query(Product).all()}
-        for row in products:
-            country = row.get("country", "AU")
-            p = existing_p.get((row["code"], country))
-            if p:
-                p.description = row["description"]
-                p.brand = row["brand"]
-                p.status = row["status"]
-                p.rrp_inc = row["rrp_inc"]
-                p.channel_prices = row["channel_prices"]
-            else:
-                db.add(Product(
-                    code=row["code"], country=country, description=row["description"],
-                    brand=row["brand"], status=row["status"],
-                    rrp_inc=row["rrp_inc"], channel_prices=row["channel_prices"]))
+        # Products: NetSuite is the source of truth (synced daily via /admin/sync-pricing).
+        # Only bootstrap from the bundled template when the catalog is empty, so a fresh
+        # deploy isn't blank before the first sync. Existing products are left untouched.
+        if db.query(Product).count() == 0:
+            upsert_products(db, load_json("seed_products.json"))
+            print("  products: bootstrapped from template (catalog was empty)")
+        else:
+            print("  products: present already — left to the NetSuite sync (no template reseed)")
         db.commit()
         print(f"Seeded {db.query(Retailer).count()} retailers, "
               f"{db.query(Product).count()} products.")

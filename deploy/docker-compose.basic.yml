@@ -13,6 +13,10 @@ services:
     restart: unless-stopped
     volumes:
       - ../data:/app/data        # SQLite db + uploaded files persist here on the host
+    environment:
+      # shared secret for the POST /admin/sync-pricing endpoint (n8n sends it). Optional;
+      # if unset the endpoint rejects all calls. Set in deploy/.env.
+      - PRICING_SYNC_TOKEN=${PRICING_SYNC_TOKEN:-}
     networks: [caddy]
     # no published ports — Caddy reaches it as http://claims:8000 on the shared network
 

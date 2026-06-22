@@ -18,6 +18,7 @@ from .export import build_workbook
 from .models import (Attachment, CustomerClaim, LineItem, Product, PromoRetailer,
                      Promotion, Retailer, VendorRequest)
 from .service import build_promo_view
+from .pricing_sync import sync_pricing
 from . import workflow
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -108,6 +109,33 @@ def dashboard(request: Request, brand: str = "", status: str = "", country: str 
 @app.get("/help", response_class=HTMLResponse)
 def help_page(request: Request):
     return templates.TemplateResponse(request, "help.html", {})
+
+
+# ---- pricing sync (NetSuite -> products), called by n8n -----------------------
+PRICING_SYNC_TOKEN = os.environ.get("PRICING_SYNC_TOKEN", "")
+
+
+@app.post("/admin/sync-pricing")
+async def sync_pricing_endpoint(request: Request, db: Session = Depends(get_db)):
+    """Upsert product/customer pricing from a NetSuite saved-search export.
+
+    Auth: shared secret in the X-Sync-Token header (set PRICING_SYNC_TOKEN).
+    Body: {"country": "AU"|"NZ", "rows": [ {<saved-search row>}, ... ]}.
+    """
+    if not PRICING_SYNC_TOKEN or request.headers.get("X-Sync-Token") != PRICING_SYNC_TOKEN:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    try:
+        payload = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid JSON body"}, status_code=400)
+    country = (payload.get("country") or "").upper()
+    rows = payload.get("rows")
+    if country not in ("AU", "NZ"):
+        return JSONResponse({"error": "country must be AU or NZ"}, status_code=400)
+    if not isinstance(rows, list):
+        return JSONResponse({"error": "rows must be a list"}, status_code=400)
+    prune = payload.get("prune", True)
+    return JSONResponse(sync_pricing(db, country, rows, prune=bool(prune)))
 
 
 # ---- create promotion --------------------------------------------------------
