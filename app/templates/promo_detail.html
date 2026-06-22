@@ -147,6 +147,7 @@
             <label>RRP inc <input name="rrp_inc" type="number" step="any" min="0" value="{{ l.rrp_inc if l.rrp_inc is not none else '' }}" style="width:7em"></label>
             <label>Buy ex <input name="retailer_buy_ex" type="number" step="any" min="0" value="{{ l.retailer_buy_ex }}" style="width:7em"></label>
             <label>% off <input name="pct_off" type="number" step="any" min="0" max="100" value="{{ (l.pct_off * 100)|round(6) }}" style="width:6em"></label>
+            <label>Promo price <input class="pp" type="number" step="any" min="0" value="{{ (l.rrp_inc * (1 - l.pct_off))|round(2) if l.rrp_inc is not none else '' }}" style="width:7em" title="RRP less % off — enter either one"></label>
             <label>6wk avg <input name="avg_6wk" type="number" step="any" min="0" value="{{ l.avg_6wk if l.avg_6wk is not none else '' }}" style="width:7em"></label>
             <label>Actual sales <input name="actual_sales" type="number" step="any" min="0" value="{{ l.actual_sales if l.actual_sales is not none else '' }}" style="width:7em"></label>
             <label>Growth <input name="growth" type="number" step="any" placeholder="def {{ promo.growth_default }}" value="{{ l.growth if l.growth is not none else '' }}" style="width:6em"></label>
@@ -200,6 +201,7 @@
       <input name="rrp_inc" type="number" step="any" min="0" placeholder="RRP inc" class="rrp" style="width:7em">
       <input name="retailer_buy_ex" type="number" step="any" min="0" placeholder="Buy ex" style="width:7em">
       <input name="pct_off" type="number" step="any" min="0" max="100" placeholder="% off" style="width:6em">
+      <input class="pp" type="number" step="any" min="0" placeholder="promo price" style="width:8em" title="RRP less % off — enter either one">
       <input name="avg_6wk" type="number" step="any" min="0" placeholder="6wk avg" style="width:7em">
       <input name="actual_sales" type="number" step="any" min="0" placeholder="actual sales" style="width:8em">
       <button class="btn small">Add</button>
@@ -409,6 +411,29 @@ function wireSplit(form) {
   recalc();
 }
 document.querySelectorAll('form.editline').forEach(wireSplit);
+
+// promo price <-> % off (RRP less % off). Either field updates the other; changing
+// RRP keeps the % and recalculates the price. % off remains the value that's saved.
+function wirePromoPrice(form) {
+  const rrp = form.querySelector('[name="rrp_inc"]');
+  const pct = form.querySelector('[name="pct_off"]');
+  const pp = form.querySelector('.pp');
+  if (!rrp || !pct || !pp) return;
+  const r2 = x => Math.round(x * 100) / 100;
+  const r4 = x => Math.round(x * 1e4) / 1e4;
+  function priceFromPct() {       // % off (or RRP) changed -> set promo price
+    const R = parseFloat(rrp.value), P = parseFloat(pct.value);
+    if (!isNaN(R) && !isNaN(P)) pp.value = r2(R * (1 - P / 100));
+  }
+  function pctFromPrice() {        // promo price changed -> set % off
+    const R = parseFloat(rrp.value), PP = parseFloat(pp.value);
+    if (!isNaN(R) && R > 0 && !isNaN(PP)) pct.value = r4((1 - PP / R) * 100);
+  }
+  pct.addEventListener('input', priceFromPct);
+  rrp.addEventListener('input', priceFromPct);
+  pp.addEventListener('input', pctFromPrice);
+}
+document.querySelectorAll('form.editline, .addline form').forEach(wirePromoPrice);
 
 // edit-details: end date can't precede start date
 (function () {
