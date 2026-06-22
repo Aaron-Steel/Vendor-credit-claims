@@ -1,6 +1,9 @@
 """FastAPI app: vendor credit claims manager."""
+import json
 import os
 import shutil
+import time
+import urllib.request
 import uuid
 from datetime import date, datetime
 
@@ -52,6 +55,27 @@ try:
 except OSError:
     asset_ver = "1"
 templates.env.globals["asset_ver"] = asset_ver
+
+
+# live FX (local->USD) for guidance on the new-promo form, cached ~6h, fails soft
+_FX_CACHE = {"ts": 0.0, "rates": None}
+
+
+def get_live_fx():
+    now = time.time()
+    if _FX_CACHE["rates"] is not None and now - _FX_CACHE["ts"] < 6 * 3600:
+        return _FX_CACHE["rates"]
+    try:
+        with urllib.request.urlopen("https://open.er-api.com/v6/latest/USD", timeout=4) as resp:
+            data = json.load(resp)
+        aud = data.get("rates", {}).get("AUD")
+        nzd = data.get("rates", {}).get("NZD")
+        if aud and nzd:
+            _FX_CACHE.update(ts=now, rates={"AUD": round(1 / aud, 4),
+                                            "NZD": round(1 / nzd, 4)})
+    except Exception:
+        pass  # leave any prior (stale) value in place; template hides it if None
+    return _FX_CACHE["rates"]
 
 
 def _parse_float(v):
@@ -145,8 +169,8 @@ def new_promo_form(request: Request, db: Session = Depends(get_db)):
         select(Retailer).order_by(Retailer.country, Retailer.name)).all()
     brands = db.scalars(select(Product.brand).distinct().order_by(Product.brand)).all()
     return templates.TemplateResponse(request, "promo_new.html", {
-        "retailers": retailers,
-        "brands": [b for b in brands if b], "today": date.today().isoformat()})
+        "retailers": retailers, "brands": [b for b in brands if b],
+        "today": date.today().isoformat(), "live_fx": get_live_fx()})
 
 
 def _validated_split(form):

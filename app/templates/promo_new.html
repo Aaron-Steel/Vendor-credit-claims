@@ -34,7 +34,13 @@
     <label>End date <input type="date" name="end_date" id="end_date" value="{{ today }}" required></label>
     <label><span id="fxLabel">Exchange rate (AUD → USD)</span>
       <input type="number" step="0.0001" min="0.0001" name="aud_usd_rate" id="aud_usd_rate" value="0.65" required>
-      <span class="hint" id="fxLive" style="font-size:.72rem"></span>
+      {% if live_fx %}
+      <span class="hint" id="fxLive" style="font-size:.72rem"
+            data-aud="{{ live_fx.AUD }}" data-nzd="{{ live_fx.NZD }}">
+        Live (indicative): AUD→USD {{ live_fx.AUD }} · NZD→USD {{ live_fx.NZD }} ·
+        <a href="#" id="fxUse">use</a>
+      </span>
+      {% endif %}
     </label>
     <label>Growth expectation <input type="number" step="any" min="0" name="growth_default" value="0.2"></label>
   </div>
@@ -118,29 +124,22 @@
   }
   country.addEventListener('change', syncCountry); syncCountry();
 
-  // exchange-rate label (currency-aware) + small live ECB rate display
+  // exchange-rate label (currency-aware) + "use" link for the server-rendered live rate
   const fxLabel = document.getElementById('fxLabel');
   const fxLive = document.getElementById('fxLive');
   const rateInput = document.getElementById('aud_usd_rate');
   const curOf = (c) => (c === 'NZ' ? 'NZD' : 'AUD');
-  let liveRates = null;
   function updateFxLabel() { fxLabel.textContent = 'Exchange rate (' + curOf(country.value) + ' → USD)'; }
-  function renderFxLive() {
-    if (!liveRates) { fxLive.textContent = ''; return; }
-    fxLive.innerHTML = 'Live (ECB): AUD→USD ' + liveRates.AUD.toFixed(4) +
-      ' · NZD→USD ' + liveRates.NZD.toFixed(4) + ' · <a href="#" id="fxUse">use</a>';
-    document.getElementById('fxUse').addEventListener('click', function (e) {
+  updateFxLabel();
+  country.addEventListener('change', updateFxLabel);
+  const fxUse = document.getElementById('fxUse');
+  if (fxUse && fxLive) {
+    fxUse.addEventListener('click', function (e) {
       e.preventDefault();
-      rateInput.value = (curOf(country.value) === 'NZD' ? liveRates.NZD : liveRates.AUD).toFixed(4);
+      const v = curOf(country.value) === 'NZD' ? fxLive.dataset.nzd : fxLive.dataset.aud;
+      if (v) rateInput.value = v;
     });
   }
-  updateFxLabel();
-  country.addEventListener('change', function () { updateFxLabel(); renderFxLive(); });
-  // free ECB reference rates; fails silently if the network blocks it
-  fetch('https://api.frankfurter.app/latest?from=USD&to=AUD,NZD')
-    .then((r) => (r.ok ? r.json() : null))
-    .then((d) => { if (d && d.rates) { liveRates = { AUD: 1 / d.rates.AUD, NZD: 1 / d.rates.NZD }; renderFxLive(); } })
-    .catch(() => {});
 
   // default support basis: reveal the fields relevant to the chosen method
   const basis = document.getElementById('basis_default');
