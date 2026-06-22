@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Promotions</h1>
+<div class="head-row">
+  <h1>Promotions</h1>
+  <a class="btn" href="/promo/new">+ New Promotion</a>
+</div>
 
 {% if stats.count == 0 and not sel_brand and not sel_status %}
   <div class="empty">
