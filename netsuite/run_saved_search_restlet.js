@@ -16,9 +16,18 @@ define(['N/search'], function (search) {
 
   function cellValue(result, col) {
     // getValue reproduces the saved-search/Excel output the importer expects (prices as
-    // raw numbers, status as its value). Coerce to a JSON-safe primitive and never throw.
+    // raw numbers). EXCEPT "Brand", which is a list field — getValue returns its internal
+    // id, so use getText to get the brand name (matches the Excel/display output).
+    var label = col.label || col.name;
     var v;
-    try { v = result.getValue(col); } catch (e) { return ''; }
+    try {
+      if (label === 'Brand') {
+        v = result.getText(col);
+        if (v === null || v === undefined || v === '') v = result.getValue(col);
+      } else {
+        v = result.getValue(col);
+      }
+    } catch (e) { return ''; }
     if (v === null || v === undefined) return '';
     if (typeof v === 'object') return String(v);   // e.g. a Date -> string
     return v;
