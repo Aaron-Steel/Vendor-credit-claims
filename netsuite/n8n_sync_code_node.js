@@ -59,11 +59,18 @@ for (const s of SEARCHES) {
   const url = RESTLET_BASE + '?' + Object.keys(query)
     .map((k) => pct(k) + '=' + pct(query[k])).join('&');
 
-  const rows = await helpers.httpRequest({
+  const nsResp = await helpers.httpRequest({
     method: 'GET', url,
     headers: { Authorization: authHeader('GET', RESTLET_BASE, query) },
-    json: true,
+    json: true, returnFullResponse: true, ignoreHttpStatusErrors: true,
   });
+  const rows = nsResp.body;
+  // surface NetSuite/RESTlet failures instead of forwarding junk to the app
+  if (nsResp.statusCode !== 200 || !Array.isArray(rows)) {
+    out.push({ json: { step: 'netsuite', country: s.country,
+                       status: nsResp.statusCode, body: rows } });
+    continue;
+  }
 
   const result = await helpers.httpRequest({
     method: 'POST', url: APP_URL,

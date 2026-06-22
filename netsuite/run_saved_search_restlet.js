@@ -36,11 +36,18 @@ define(['N/search'], function (search) {
   }
 
   function handle(context) {
-    var searchId = context.searchId || (context.body && context.body.searchId);
-    if (!searchId) {
-      return { error: 'searchId is required' };
+    try {
+      var searchId = context.searchId || (context.body && context.body.searchId);
+      if (!searchId) {
+        return { error: 'searchId is required' };
+      }
+      return runSavedSearch(searchId);
+    } catch (e) {
+      // surface the real cause (e.g. permission/search errors) instead of a generic
+      // UNEXPECTED_ERROR, so the caller can see what went wrong.
+      return { error: (e && e.name) || 'error',
+               message: (e && e.message) || String(e) };
     }
-    return runSavedSearch(searchId);
   }
 
   return { get: handle, post: handle };
