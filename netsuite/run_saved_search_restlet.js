@@ -13,6 +13,16 @@
  */
 define(['N/search'], function (search) {
 
+  function cellValue(result, col) {
+    // getValue reproduces the saved-search/Excel output the importer expects (prices as
+    // raw numbers, status as its value). Coerce to a JSON-safe primitive and never throw.
+    var v;
+    try { v = result.getValue(col); } catch (e) { return ''; }
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'object') return String(v);   // e.g. a Date -> string
+    return v;
+  }
+
   function runSavedSearch(searchId) {
     var s = search.load({ id: searchId });
     var columns = s.columns;
@@ -22,13 +32,11 @@ define(['N/search'], function (search) {
       var page = paged.fetch({ index: range.index });
       page.data.forEach(function (result) {
         var obj = {};
-        columns.forEach(function (col) {
+        for (var i = 0; i < columns.length; i++) {
+          var col = columns[i];
           var key = col.label || col.name;
-          // getValue reproduces the saved-search/Excel output the importer expects
-          // (prices as raw numbers, status as its value). If a list field ever comes
-          // back as an internal id, switch that column to result.getText(col).
-          obj[key] = result.getValue(col);
-        });
+          obj[key] = cellValue(result, col);
+        }
         rows.push(obj);
       });
     });
@@ -46,7 +54,8 @@ define(['N/search'], function (search) {
       // surface the real cause (e.g. permission/search errors) instead of a generic
       // UNEXPECTED_ERROR, so the caller can see what went wrong.
       return { error: (e && e.name) || 'error',
-               message: (e && e.message) || String(e) };
+               message: (e && e.message) || String(e),
+               detail: (e && e.stack) ? String(e.stack).split('\n')[0] : undefined };
     }
   }
 
