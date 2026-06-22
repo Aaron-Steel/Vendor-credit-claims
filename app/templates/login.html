@@ -13,8 +13,8 @@
 <body class="login-page">
   <main class="login-wrap">
     <form method="post" action="/login" class="card login-card" autocomplete="on">
-      <div class="login-brand">MacGear</div>
-      <h1>Credit Claims</h1>
+      <img class="login-logo" src="/static/macgear-logo.png?v={{ asset_ver }}" alt="MacGear">
+      <h1>Promotions</h1>
       <p class="hint">Sign in to continue.</p>
       {% if error %}<div class="banner error">{{ error }}</div>{% endif %}
       <label>Username
