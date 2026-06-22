@@ -43,7 +43,7 @@ a:hover{text-decoration:underline}
   background:var(--brand);color:#fff;padding:.7rem 1.4rem}
 .topbar .brand{display:flex;align-items:center;gap:.6rem;color:#fff;font-weight:700;font-size:1.05rem}
 .topbar .brand:hover{text-decoration:none}
-.brand-logo{height:24px;width:auto;display:block;background:#fff;padding:5px 9px;border-radius:7px}
+.brand-logo{height:32px;width:auto;display:block;background:#fff;padding:5px 10px;border-radius:7px}
 .brand-word{color:#fff;font-weight:600}
 .topbar nav{display:flex;gap:1.2rem;align-items:center}
 .topbar nav a{color:#dfe7f5}
@@ -91,7 +91,8 @@ button.link.danger,.danger{color:var(--danger)}
 .login-page{display:flex;min-height:100vh}
 .login-wrap{margin:auto;width:100%;max-width:380px;padding:1.5rem}
 .login-card{display:flex;flex-direction:column;gap:.2rem;padding:1.8rem}
-.login-card .login-logo{height:40px;width:auto;display:block;margin-bottom:.5rem}
+.login-card .login-logo{height:44px;width:auto;max-width:100%;align-self:flex-start;
+  display:block;margin-bottom:.5rem}
 .login-card h1{margin:0 0 .1rem}
 .login-card label{display:flex;flex-direction:column;gap:.25rem;margin:.6rem 0 0;font-size:.85rem;color:var(--muted)}
 .login-card input{font-size:1rem}
