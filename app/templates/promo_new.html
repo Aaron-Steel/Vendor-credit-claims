@@ -31,6 +31,19 @@
   </div>
 
   <fieldset class="split-group wide">
+    <legend>Default support basis (applies to new lines; override per line later)</legend>
+    <label>Support basis
+      <select name="support_basis_default" id="basis_default">
+        <option value="pct_off">% off (discount)</option>
+        <option value="margin">Target promo margin</option>
+      </select>
+    </label>
+    <label id="tgt_default_wrap">Target promo % <input type="number" step="any" name="target_margin_default" id="tgt_default" placeholder="e.g. 35" style="width:7em"></label>
+    <span class="hint">"% off" = support is net buy × % off. "Target promo margin" = support is
+      back-solved to hit that margin (you still set % off per line for the promo price).</span>
+  </fieldset>
+
+  <fieldset class="split-group wide">
     <legend>Default funding split (Retailer = remainder; override per line later)</legend>
     <label>Brand / Supplier <input type="number" step="any" min="0" max="1" name="ratio_supplier" class="rs" value="0.333" style="width:6em"></label>
     <label>MacGear <input type="number" step="any" min="0" max="1" name="ratio_mg" class="rm" value="0.333" style="width:6em"></label>
@@ -74,6 +87,12 @@
   // end date can't precede start date
   function syncDates() { end.min = start.value; }
   start.addEventListener('change', syncDates); syncDates();
+
+  // default support basis: show target-margin field only when "margin" is chosen
+  const basis = document.getElementById('basis_default');
+  const tgtWrap = document.getElementById('tgt_default_wrap');
+  function syncBasis() { tgtWrap.style.display = basis.value === 'margin' ? '' : 'none'; }
+  basis.addEventListener('change', syncBasis); syncBasis();
 
   // funding split: retailer = 1 - supplier - mg; block submit unless valid
   const s = form.querySelector('.rs'), m = form.querySelector('.rm'), r = form.querySelector('.rr');

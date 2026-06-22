@@ -26,6 +26,8 @@ _ADDED_COLUMNS = {
     "line_items": {"actual_sales": "FLOAT",
                    "support_basis": "VARCHAR",
                    "target_margin": "FLOAT"},
+    "promotions": {"support_basis_default": "VARCHAR",
+                   "target_margin_default": "FLOAT"},
 }
 
 

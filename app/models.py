@@ -52,6 +52,9 @@ class Promotion(Base):
     ratio_mg: Mapped[float] = mapped_column(Float, default=0.333)
     ratio_supplier: Mapped[float] = mapped_column(Float, default=0.333)
     growth_default: Mapped[float] = mapped_column(Float, default=0.2)
+    # default support basis for new lines: "pct_off" or "margin" (+ default target margin)
+    support_basis_default: Mapped[str] = mapped_column(String, default="pct_off")
+    target_margin_default: Mapped[float | None] = mapped_column(Float, nullable=True)
     status: Mapped[str] = mapped_column(String, default="Draft")  # Draft/Sent/Live/Closed
     notes: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

@@ -135,6 +135,7 @@ async def create_promo(request: Request, db: Session = Depends(get_db)):
     if split is None:
         return RedirectResponse("/promo/new?err=split", status_code=303)
     supplier, mg, retailer = split
+    tgt_default = _parse_float(form.get("target_margin_default"))
     promo = Promotion(
         claim_number=form.get("claim_number", "").strip(),
         name=form.get("name", "").strip(),
@@ -146,6 +147,8 @@ async def create_promo(request: Request, db: Session = Depends(get_db)):
         ratio_mg=mg,
         ratio_supplier=supplier,
         growth_default=_parse_float(form.get("growth_default")) or 0.0,
+        support_basis_default=form.get("support_basis_default") or "pct_off",
+        target_margin_default=(tgt_default / 100.0) if tgt_default is not None else None,
         notes=form.get("notes", "").strip(),
     )
     db.add(promo)
@@ -192,7 +195,11 @@ async def add_line(pr_id: int, request: Request, db: Session = Depends(get_db)):
     pr = db.get(PromoRetailer, pr_id)
     code = form.get("product_code", "").strip()
     prod = db.scalar(select(Product).where(Product.code == code)) if code else None
+    # support basis: form value, else the promo's default
+    basis = form.get("support_basis") or pr.promotion.support_basis_default or "pct_off"
     tgt = _parse_float(form.get("target_margin"))
+    target_margin = (tgt / 100.0) if tgt is not None else (
+        pr.promotion.target_margin_default if basis == "margin" else None)
     line = LineItem(
         promo_retailer_id=pr_id,
         product_code=code,
@@ -202,8 +209,8 @@ async def add_line(pr_id: int, request: Request, db: Session = Depends(get_db)):
         pct_off=(_parse_float(form.get("pct_off")) or 0.0) / 100.0,
         avg_6wk=_parse_float(form.get("avg_6wk")),
         actual_sales=_parse_float(form.get("actual_sales")),
-        support_basis=form.get("support_basis") or "pct_off",
-        target_margin=(tgt / 100.0) if tgt is not None else None,
+        support_basis=basis,
+        target_margin=target_margin,
     )
     db.add(line)
     db.commit()
@@ -441,6 +448,10 @@ async def update_details(promo_id: int, request: Request, db: Session = Depends(
     rate = _parse_float(form.get("aud_usd_rate"))
     if rate is not None:
         promo.aud_usd_rate = rate
+    if form.get("support_basis_default"):
+        promo.support_basis_default = form.get("support_basis_default")
+    tgt_default = _parse_float(form.get("target_margin_default"))
+    promo.target_margin_default = (tgt_default / 100.0) if tgt_default is not None else None
     db.commit()
     return RedirectResponse(f"/promo/{promo_id}", status_code=303)
 
