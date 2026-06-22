@@ -74,9 +74,32 @@ def test_margin_basis_falls_back_without_target():
     assert abs(pct.total_support - margin_no_target.total_support) < 1e-12
 
 
+def test_cogs_basis_pct_off_cost():
+    """Withings %OFFCOGS sample. JB Hi-Fi: supplier support = buy ex x 17.5%, MG 0
+    (H5 = G5*17.5%). Harvey Norman same SKU: supplier 12.5% + MG 8% of buy ex.
+    Rebate is NOT applied to the support (it's % of gross buy ex)."""
+    # JB Hi-Fi style: supplier only (ratios unused in cogs mode)
+    jb = compute_line(LineInputs(
+        retailer_buy_ex=100.0, rebate=0.19, pct_off=0.10, rrp_inc=200.0,
+        ratio_supplier=0.0, ratio_mg=0.0,
+        support_basis="cogs", cogs_supplier_pct=0.175, cogs_mg_pct=0.0), weeks=2)
+    assert abs(jb.supplier_support - 17.5) < 1e-9   # 100 * 17.5%, rebate ignored
+    assert abs(jb.mg_support - 0.0) < 1e-9
+    assert abs(jb.total_support - 17.5) < 1e-9
+    # Harvey Norman style: supplier + MG
+    hn = compute_line(LineInputs(
+        retailer_buy_ex=100.0, rebate=0.17, pct_off=0.10, rrp_inc=200.0,
+        ratio_supplier=0.0, ratio_mg=0.0,
+        support_basis="cogs", cogs_supplier_pct=0.125, cogs_mg_pct=0.08), weeks=2)
+    assert abs(hn.supplier_support - 12.5) < 1e-9
+    assert abs(hn.mg_support - 8.0) < 1e-9
+    assert abs(hn.total_support - 20.5) < 1e-9
+
+
 if __name__ == "__main__":
     test_anker_officeworks_line()
     test_expected_sales_and_claims()
     test_margin_basis_back_solves_support()
     test_margin_basis_falls_back_without_target()
+    test_cogs_basis_pct_off_cost()
     print("All calc tests passed.")

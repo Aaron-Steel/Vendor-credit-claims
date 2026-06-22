@@ -25,9 +25,13 @@ class Base(DeclarativeBase):
 _ADDED_COLUMNS = {
     "line_items": {"actual_sales": "FLOAT",
                    "support_basis": "VARCHAR",
-                   "target_margin": "FLOAT"},
+                   "target_margin": "FLOAT",
+                   "cogs_supplier_pct": "FLOAT",
+                   "cogs_mg_pct": "FLOAT"},
     "promotions": {"support_basis_default": "VARCHAR",
-                   "target_margin_default": "FLOAT"},
+                   "target_margin_default": "FLOAT",
+                   "cogs_supplier_pct_default": "FLOAT",
+                   "cogs_mg_pct_default": "FLOAT"},
 }
 
 

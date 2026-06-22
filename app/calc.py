@@ -23,6 +23,12 @@ Support can be driven two ways (support_basis):
     mg_support       = total_support * ratio_mg       / (ratio_supplier + ratio_mg)
     (% off still sets the promo sale price; promo_margin then equals target_margin)
 
+  "cogs" — % off cost (e.g. Withings): each party funds a % of the GROSS buy ex:
+    supplier_support = retailer_buy_ex * cogs_supplier_pct
+    mg_support       = retailer_buy_ex * cogs_mg_pct
+    total_support    = supplier_support + mg_support
+    (rebate is NOT applied here; % off still sets the promo sale price)
+
 Both modes then:
     promo_margin     = (rec_sale_inc/1.1 + total_support - net_buy) / (rec_sale_inc/1.1)
     expected_sales   = ceil(avg_6wk * (1 + growth)) * weeks
@@ -53,8 +59,10 @@ class LineInputs:
     avg_6wk: float | None = None    # customer 6-week avg unit sales           (N)
     growth: float = 0.0             # growth expectation fraction              (O$2)
     actual_sales: float | None = None  # qty actually sold / being claimed
-    support_basis: str = "pct_off"  # "pct_off" (discount-driven) or "margin"
+    support_basis: str = "pct_off"  # "pct_off" (discount-driven) | "margin" | "cogs"
     target_margin: float | None = None  # target promo margin fraction (margin mode)
+    cogs_supplier_pct: float | None = None  # supplier % off gross buy ex (cogs mode)
+    cogs_mg_pct: float | None = None        # MacGear % off gross buy ex  (cogs mode)
 
 
 @dataclass
@@ -87,6 +95,13 @@ def compute_line(i: LineInputs, weeks: float) -> LineResult:
         denom = i.ratio_supplier + i.ratio_mg
         supplier_support = total_support * i.ratio_supplier / denom if denom else 0.0
         mg_support = total_support * i.ratio_mg / denom if denom else 0.0
+        total_support = supplier_support + mg_support
+        total_support_unit = total_support
+    elif i.support_basis == "cogs":
+        # % off cost (e.g. Withings): each party funds a % of the GROSS buy ex.
+        # Rebate is not applied here; % off still sets the promo sale price above.
+        supplier_support = i.retailer_buy_ex * (i.cogs_supplier_pct or 0.0)
+        mg_support = i.retailer_buy_ex * (i.cogs_mg_pct or 0.0)
         total_support = supplier_support + mg_support
         total_support_unit = total_support
     else:

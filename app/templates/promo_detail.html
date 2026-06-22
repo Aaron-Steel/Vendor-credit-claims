@@ -38,9 +38,12 @@
       <select name="support_basis_default" id="d_basis">
         <option value="pct_off" {{ 'selected' if (promo.support_basis_default or 'pct_off') == 'pct_off' }}>% off (discount)</option>
         <option value="margin" {{ 'selected' if promo.support_basis_default == 'margin' }}>Target promo margin</option>
+        <option value="cogs" {{ 'selected' if promo.support_basis_default == 'cogs' }}>% off cost (COGS)</option>
       </select>
     </label>
     <label id="d_tgt_wrap">Default target promo % <input type="number" step="any" name="target_margin_default" id="d_tgt" value="{{ (promo.target_margin_default * 100)|round(4) if promo.target_margin_default is not none else '' }}" style="width:7em"></label>
+    <label id="d_csp_wrap">Default supplier % off cost <input type="number" step="any" name="cogs_supplier_pct_default" id="d_csp" value="{{ (promo.cogs_supplier_pct_default * 100)|round(4) if promo.cogs_supplier_pct_default is not none else '' }}" style="width:7em"></label>
+    <label id="d_cmp_wrap">Default MacGear % off cost <input type="number" step="any" name="cogs_mg_pct_default" id="d_cmp" value="{{ (promo.cogs_mg_pct_default * 100)|round(4) if promo.cogs_mg_pct_default is not none else '' }}" style="width:7em"></label>
     <button class="btn small">Save</button>
     <button type="button" class="link" onclick="toggleEdit('details')">cancel</button>
   </form>
@@ -137,7 +140,7 @@
           <td class="num">{{ c.supplier_claim|money }}</td>
           <td class="num">{{ c.mg_claim|money }}</td>
           <td class="num">{{ l.rrp_inc|money }}</td>
-          <td class="num">{{ l.pct_off|pct }}{% if l.support_basis == 'margin' %} <span class="muted" title="Support set to target promo margin {{ (l.target_margin * 100)|round(2) if l.target_margin is not none else '?' }}%">⌖</span>{% endif %}</td>
+          <td class="num">{{ l.pct_off|pct }}{% if l.support_basis == 'margin' %} <span class="muted" title="Support set to target promo margin {{ (l.target_margin * 100)|round(2) if l.target_margin is not none else '?' }}%">⌖</span>{% elif l.support_basis == 'cogs' %} <span class="muted" title="Support = % off cost (supplier {{ (l.cogs_supplier_pct * 100)|round(2) if l.cogs_supplier_pct is not none else 0 }}% + MacGear {{ (l.cogs_mg_pct * 100)|round(2) if l.cogs_mg_pct is not none else 0 }}% of buy ex)">⊘</span>{% endif %}</td>
           <td class="num">{{ c.rec_sale_inc|money }}</td>
           <td class="rowactions">
             <button type="button" class="link" title="edit" onclick="toggleEdit({{ l.id }})">✎</button>
@@ -159,9 +162,12 @@
               <select name="support_basis" class="basis">
                 <option value="pct_off" {{ 'selected' if (l.support_basis or 'pct_off') == 'pct_off' }}>% off (discount)</option>
                 <option value="margin" {{ 'selected' if l.support_basis == 'margin' }}>Target promo margin</option>
+                <option value="cogs" {{ 'selected' if l.support_basis == 'cogs' }}>% off cost (COGS)</option>
               </select>
             </label>
             <label class="tgt-wrap">Target promo % <input name="target_margin" class="tgt" type="number" step="any" value="{{ (l.target_margin * 100)|round(4) if l.target_margin is not none else '' }}" style="width:6em" title="Support is back-solved to hit this end-to-end promo margin"></label>
+            <label class="cogs-wrap">Supplier % off cost <input name="cogs_supplier_pct" class="csp" type="number" step="any" min="0" value="{{ (l.cogs_supplier_pct * 100)|round(4) if l.cogs_supplier_pct is not none else '' }}" style="width:6em" title="Supplier funds this % of the buy-ex (gross)"></label>
+            <label class="cogs-wrap">MacGear % off cost <input name="cogs_mg_pct" class="cmp" type="number" step="any" min="0" value="{{ (l.cogs_mg_pct * 100)|round(4) if l.cogs_mg_pct is not none else '' }}" style="width:6em" title="MacGear funds this % of the buy-ex (gross)"></label>
             <label>6wk avg <input name="avg_6wk" type="number" step="any" min="0" value="{{ l.avg_6wk if l.avg_6wk is not none else '' }}" style="width:7em"></label>
             <label>Actual sales <input name="actual_sales" type="number" step="any" min="0" value="{{ l.actual_sales if l.actual_sales is not none else '' }}" style="width:7em"></label>
             <label>Growth <input name="growth" type="number" step="any" placeholder="def {{ promo.growth_default }}" value="{{ l.growth if l.growth is not none else '' }}" style="width:6em"></label>
@@ -219,8 +225,11 @@
       <select name="support_basis" class="basis" title="how support is calculated (default from promo)" style="width:9em">
         <option value="pct_off" {{ 'selected' if (promo.support_basis_default or 'pct_off') == 'pct_off' }}>support: % off</option>
         <option value="margin" {{ 'selected' if promo.support_basis_default == 'margin' }}>support: target margin</option>
+        <option value="cogs" {{ 'selected' if promo.support_basis_default == 'cogs' }}>support: % off cost</option>
       </select>
       <input name="target_margin" class="tgt" type="number" step="any" placeholder="target promo %" value="{{ (promo.target_margin_default * 100)|round(4) if promo.target_margin_default is not none else '' }}" style="width:9em" title="Support back-solved to hit this end-to-end promo margin">
+      <input name="cogs_supplier_pct" class="csp" type="number" step="any" min="0" placeholder="supplier % off cost" value="{{ (promo.cogs_supplier_pct_default * 100)|round(4) if promo.cogs_supplier_pct_default is not none else '' }}" style="width:11em" title="Supplier funds this % of buy-ex">
+      <input name="cogs_mg_pct" class="cmp" type="number" step="any" min="0" placeholder="MG % off cost" value="{{ (promo.cogs_mg_pct_default * 100)|round(4) if promo.cogs_mg_pct_default is not none else '' }}" style="width:9em" title="MacGear funds this % of buy-ex">
       <input name="avg_6wk" type="number" step="any" min="0" placeholder="6wk avg" style="width:7em">
       <input name="actual_sales" type="number" step="any" min="0" placeholder="actual sales" style="width:8em">
       <button class="btn small">Add</button>
@@ -453,16 +462,24 @@ function wirePromoPrice(form) {
 }
 document.querySelectorAll('form.editline, .addline form').forEach(wirePromoPrice);
 
-// support basis: show the target-margin field only when "Target promo margin" is chosen
+// support basis: reveal the fields relevant to the chosen method
+//   pct_off -> funding split fieldset      margin -> target % + funding split
+//   cogs    -> supplier/MG % off cost (funding split hidden)
 function wireBasis(form) {
   const sel = form.querySelector('.basis');
   if (!sel) return;
-  const wrap = form.querySelector('.tgt-wrap');   // edit row wraps it in a label
-  const tgt = form.querySelector('.tgt');          // add-line row has a bare input
+  const show = (el, on) => { if (el) el.style.display = on ? '' : 'none'; };
+  const tgtWrap = form.querySelector('.tgt-wrap');         // edit row label
+  const tgtBare = form.querySelector('.tgt');              // add-line bare input
+  const cogsWraps = form.querySelectorAll('.cogs-wrap');   // edit row labels
+  const cogsBare = form.querySelectorAll('.csp, .cmp');    // add-line bare inputs
+  const splitGroup = form.querySelector('.split-group');   // funding split (edit row only)
   function sync() {
-    const margin = sel.value === 'margin';
-    if (wrap) wrap.style.display = margin ? '' : 'none';
-    else if (tgt) tgt.style.display = margin ? '' : 'none';
+    const v = sel.value;
+    if (tgtWrap) show(tgtWrap, v === 'margin'); else show(tgtBare, v === 'margin');
+    if (cogsWraps.length) cogsWraps.forEach(w => show(w, v === 'cogs'));
+    else cogsBare.forEach(i => show(i, v === 'cogs'));
+    show(splitGroup, v !== 'cogs');   // ratios don't apply in cogs mode
   }
   sel.addEventListener('change', sync);
   sync();
@@ -476,10 +493,17 @@ document.querySelectorAll('form.editline, .addline form').forEach(wireBasis);
   const ds = document.getElementById('d_start'), de = document.getElementById('d_end');
   function sync() { de.min = ds.value; }
   ds.addEventListener('change', sync); sync();
-  // show the default-target-margin field only when basis is "margin"
-  const db = document.getElementById('d_basis'), dtw = document.getElementById('d_tgt_wrap');
-  if (db && dtw) {
-    const syncB = () => { dtw.style.display = db.value === 'margin' ? '' : 'none'; };
+  // reveal the default fields relevant to the chosen default basis
+  const db = document.getElementById('d_basis');
+  if (db) {
+    const dtw = document.getElementById('d_tgt_wrap');
+    const dcs = document.getElementById('d_csp_wrap'), dcm = document.getElementById('d_cmp_wrap');
+    const set = (el, on) => { if (el) el.style.display = on ? '' : 'none'; };
+    const syncB = () => {
+      set(dtw, db.value === 'margin');
+      set(dcs, db.value === 'cogs');
+      set(dcm, db.value === 'cogs');
+    };
     db.addEventListener('change', syncB); syncB();
   }
   f.addEventListener('submit', function (e) {

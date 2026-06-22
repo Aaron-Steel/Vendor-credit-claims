@@ -36,11 +36,16 @@
       <select name="support_basis_default" id="basis_default">
         <option value="pct_off">% off (discount)</option>
         <option value="margin">Target promo margin</option>
+        <option value="cogs">% off cost (COGS)</option>
       </select>
     </label>
     <label id="tgt_default_wrap">Target promo % <input type="number" step="any" name="target_margin_default" id="tgt_default" placeholder="e.g. 35" style="width:7em"></label>
-    <span class="hint">"% off" = support is net buy × % off. "Target promo margin" = support is
-      back-solved to hit that margin (you still set % off per line for the promo price).</span>
+    <label id="cogs_s_wrap">Supplier % off cost <input type="number" step="any" min="0" name="cogs_supplier_pct_default" id="cogs_s_default" placeholder="e.g. 17.5" style="width:7em"></label>
+    <label id="cogs_m_wrap">MacGear % off cost <input type="number" step="any" min="0" name="cogs_mg_pct_default" id="cogs_m_default" placeholder="e.g. 0" style="width:7em"></label>
+    <span class="hint">"% off" = support is net buy × % off (split by funding ratios).
+      "Target promo margin" = support back-solved to hit that margin.
+      "% off cost" = supplier/MacGear each fund a % of the gross buy ex (e.g. Withings).
+      You still set % off per line for the customer promo price.</span>
   </fieldset>
 
   <fieldset class="split-group wide">
@@ -88,10 +93,15 @@
   function syncDates() { end.min = start.value; }
   start.addEventListener('change', syncDates); syncDates();
 
-  // default support basis: show target-margin field only when "margin" is chosen
+  // default support basis: reveal the fields relevant to the chosen method
   const basis = document.getElementById('basis_default');
   const tgtWrap = document.getElementById('tgt_default_wrap');
-  function syncBasis() { tgtWrap.style.display = basis.value === 'margin' ? '' : 'none'; }
+  const cogsS = document.getElementById('cogs_s_wrap'), cogsM = document.getElementById('cogs_m_wrap');
+  function syncBasis() {
+    tgtWrap.style.display = basis.value === 'margin' ? '' : 'none';
+    cogsS.style.display = basis.value === 'cogs' ? '' : 'none';
+    cogsM.style.display = basis.value === 'cogs' ? '' : 'none';
+  }
   basis.addEventListener('change', syncBasis); syncBasis();
 
   // funding split: retailer = 1 - supplier - mg; block submit unless valid

@@ -136,6 +136,8 @@ async def create_promo(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse("/promo/new?err=split", status_code=303)
     supplier, mg, retailer = split
     tgt_default = _parse_float(form.get("target_margin_default"))
+    csp_default = _parse_float(form.get("cogs_supplier_pct_default"))
+    cmp_default = _parse_float(form.get("cogs_mg_pct_default"))
     promo = Promotion(
         claim_number=form.get("claim_number", "").strip(),
         name=form.get("name", "").strip(),
@@ -149,6 +151,8 @@ async def create_promo(request: Request, db: Session = Depends(get_db)):
         growth_default=_parse_float(form.get("growth_default")) or 0.0,
         support_basis_default=form.get("support_basis_default") or "pct_off",
         target_margin_default=(tgt_default / 100.0) if tgt_default is not None else None,
+        cogs_supplier_pct_default=(csp_default / 100.0) if csp_default is not None else None,
+        cogs_mg_pct_default=(cmp_default / 100.0) if cmp_default is not None else None,
         notes=form.get("notes", "").strip(),
     )
     db.add(promo)
@@ -196,10 +200,17 @@ async def add_line(pr_id: int, request: Request, db: Session = Depends(get_db)):
     code = form.get("product_code", "").strip()
     prod = db.scalar(select(Product).where(Product.code == code)) if code else None
     # support basis: form value, else the promo's default
-    basis = form.get("support_basis") or pr.promotion.support_basis_default or "pct_off"
+    promo = pr.promotion
+    basis = form.get("support_basis") or promo.support_basis_default or "pct_off"
     tgt = _parse_float(form.get("target_margin"))
     target_margin = (tgt / 100.0) if tgt is not None else (
-        pr.promotion.target_margin_default if basis == "margin" else None)
+        promo.target_margin_default if basis == "margin" else None)
+    csp = _parse_float(form.get("cogs_supplier_pct"))
+    cmp = _parse_float(form.get("cogs_mg_pct"))
+    cogs_supplier_pct = (csp / 100.0) if csp is not None else (
+        promo.cogs_supplier_pct_default if basis == "cogs" else None)
+    cogs_mg_pct = (cmp / 100.0) if cmp is not None else (
+        promo.cogs_mg_pct_default if basis == "cogs" else None)
     line = LineItem(
         promo_retailer_id=pr_id,
         product_code=code,
@@ -211,6 +222,8 @@ async def add_line(pr_id: int, request: Request, db: Session = Depends(get_db)):
         actual_sales=_parse_float(form.get("actual_sales")),
         support_basis=basis,
         target_margin=target_margin,
+        cogs_supplier_pct=cogs_supplier_pct,
+        cogs_mg_pct=cogs_mg_pct,
     )
     db.add(line)
     db.commit()
@@ -249,6 +262,8 @@ async def copy_lines(pr_id: int, request: Request, db: Session = Depends(get_db)
             avg_6wk=None,
             support_basis=src.support_basis,
             target_margin=src.target_margin,
+            cogs_supplier_pct=src.cogs_supplier_pct,
+            cogs_mg_pct=src.cogs_mg_pct,
             ratio_supplier=src.ratio_supplier,
             ratio_mg=src.ratio_mg,
             ratio_retailer=src.ratio_retailer,
@@ -287,6 +302,10 @@ async def edit_line(line_id: int, request: Request, db: Session = Depends(get_db
     line.support_basis = form.get("support_basis") or "pct_off"
     tgt = _parse_float(form.get("target_margin"))
     line.target_margin = (tgt / 100.0) if tgt is not None else None
+    csp = _parse_float(form.get("cogs_supplier_pct"))
+    cmp = _parse_float(form.get("cogs_mg_pct"))
+    line.cogs_supplier_pct = (csp / 100.0) if csp is not None else None
+    line.cogs_mg_pct = (cmp / 100.0) if cmp is not None else None
     db.commit()
     return RedirectResponse(f"/promo/{promo_id}", status_code=303)
 
@@ -452,6 +471,10 @@ async def update_details(promo_id: int, request: Request, db: Session = Depends(
         promo.support_basis_default = form.get("support_basis_default")
     tgt_default = _parse_float(form.get("target_margin_default"))
     promo.target_margin_default = (tgt_default / 100.0) if tgt_default is not None else None
+    csp_default = _parse_float(form.get("cogs_supplier_pct_default"))
+    promo.cogs_supplier_pct_default = (csp_default / 100.0) if csp_default is not None else None
+    cmp_default = _parse_float(form.get("cogs_mg_pct_default"))
+    promo.cogs_mg_pct_default = (cmp_default / 100.0) if cmp_default is not None else None
     db.commit()
     return RedirectResponse(f"/promo/{promo_id}", status_code=303)
 
