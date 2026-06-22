@@ -81,7 +81,7 @@
   <div class="head-row">
     <h2>{{ pr.retailer_name }} <small class="muted">rebate {{ pr.rebate|pct }}</small></h2>
     {% if editable %}
-    <form method="post" action="/retailer/{{ pr.id }}/delete" onsubmit="return confirm('Remove this retailer block and its lines?')">
+    <form method="post" action="/retailer/{{ pr.id }}/delete" data-confirm="Remove this retailer block and all its lines?" data-confirm-ok="Remove">
       <button class="link danger">remove retailer</button>
     </form>
     {% endif %}
@@ -306,7 +306,7 @@
           <a href="/attachment/{{ att.id }}">📎 {{ att.filename }}</a>
           <span class="muted">({{ (att.size / 1024)|round(1) }} KB)</span>
           {% if editable %}
-          <form method="post" action="/attachment/{{ att.id }}/delete" onsubmit="return confirm('Delete this file?')">
+          <form method="post" action="/attachment/{{ att.id }}/delete" data-confirm="Delete this file?">
             <button class="link danger" title="delete">✕</button>
           </form>
           {% endif %}
@@ -370,7 +370,7 @@
 </section>
 
 <form method="post" action="/promo/{{ promo.id }}/delete" class="delete-promo"
-      onsubmit="return confirm('Delete this entire promotion?')">
+      data-confirm="Delete this entire promotion and all its data? This cannot be undone.">
   <button class="link danger">Delete promotion</button>
 </form>
 {% endblock %}

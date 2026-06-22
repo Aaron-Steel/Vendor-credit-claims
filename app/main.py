@@ -1,4 +1,6 @@
 """FastAPI app: vendor credit claims manager."""
+import hashlib
+import hmac
 import json
 import os
 import shutil
@@ -55,6 +57,81 @@ try:
 except OSError:
     asset_ver = "1"
 templates.env.globals["asset_ver"] = asset_ver
+
+
+# ---- authentication (shared username/password, signed-cookie session) --------
+# Auth runs inside the app so we get a styled /login page instead of the browser's
+# basic-auth popup. Configure via env on the droplet:
+#   APP_USERNAME  shared username testers type (default "macgear")
+#   APP_PASSWORD  shared password — if blank, auth is DISABLED (handy for local dev)
+#   APP_SECRET    random string used to sign the session cookie (set a long one!)
+APP_USERNAME = os.environ.get("APP_USERNAME", "macgear")
+APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
+APP_SECRET = os.environ.get("APP_SECRET", "") or "dev-insecure-secret-change-me"
+COOKIE_NAME = "claims_session"
+COOKIE_MAX_AGE = 60 * 60 * 24 * 30          # 30 days
+# paths reachable without a login (static assets, the login page itself, and the
+# token-authenticated pricing sync endpoint that n8n posts to)
+_AUTH_EXEMPT_PREFIXES = ("/static", "/login", "/logout", "/admin/sync-pricing")
+templates.env.globals["auth_enabled"] = bool(APP_PASSWORD)
+
+
+def _make_token() -> str:
+    sig = hmac.new(APP_SECRET.encode(), b"authenticated", hashlib.sha256).hexdigest()
+    return f"authenticated.{sig}"
+
+
+def _valid_token(tok: str) -> bool:
+    if not tok or "." not in tok:
+        return False
+    msg, _, sig = tok.rpartition(".")
+    expected = hmac.new(APP_SECRET.encode(), msg.encode(), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(sig, expected)
+
+
+@app.middleware("http")
+async def require_login(request: Request, call_next):
+    if not APP_PASSWORD:                     # auth disabled (no password configured)
+        return await call_next(request)
+    path = request.url.path
+    if any(path == p or path.startswith(p + "/") or path.startswith(p)
+           for p in _AUTH_EXEMPT_PREFIXES):
+        return await call_next(request)
+    if not _valid_token(request.cookies.get(COOKIE_NAME, "")):
+        return RedirectResponse("/login", status_code=303)
+    return await call_next(request)
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_form(request: Request):
+    if not APP_PASSWORD or _valid_token(request.cookies.get(COOKIE_NAME, "")):
+        return RedirectResponse("/", status_code=303)
+    return templates.TemplateResponse(request, "login.html", {"error": ""})
+
+
+@app.post("/login")
+async def login_submit(request: Request):
+    form = await request.form()
+    user = form.get("username", "")
+    pw = form.get("password", "")
+    ok = (hmac.compare_digest(user, APP_USERNAME)
+          and hmac.compare_digest(pw, APP_PASSWORD))
+    if not ok:
+        return templates.TemplateResponse(
+            request, "login.html",
+            {"error": "Incorrect username or password."},
+            status_code=401)
+    resp = RedirectResponse("/", status_code=303)
+    resp.set_cookie(COOKIE_NAME, _make_token(), max_age=COOKIE_MAX_AGE,
+                    httponly=True, samesite="lax")
+    return resp
+
+
+@app.get("/logout")
+def logout():
+    resp = RedirectResponse("/login", status_code=303)
+    resp.delete_cookie(COOKIE_NAME)
+    return resp
 
 
 # live FX (local->USD) for guidance on the new-promo form, cached ~6h, fails soft

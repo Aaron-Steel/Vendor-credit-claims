@@ -1,8 +1,9 @@
-# Vendor Credit Claims — app only, behind the droplet's existing Caddy with HTTP basic auth.
+# Vendor Credit Claims — app only, behind the droplet's existing Caddy.
 #
-# No SSO. Caddy (already running for n8n) terminates HTTPS, prompts for a shared
-# username/password, then reverse-proxies to this `claims` container. The app is never
-# published to the host directly — it's only reachable on Caddy's docker network.
+# No SSO. Caddy (already running for n8n) terminates HTTPS and reverse-proxies to this
+# `claims` container. The app itself shows a styled /login page and checks a shared
+# username/password (set below) — Caddy no longer prompts. The app is never published to
+# the host directly — it's only reachable on Caddy's docker network.
 #
 # Run from this deploy/ folder:  docker compose -f docker-compose.basic.yml up -d --build
 # Values come from deploy/.env (see .env.basic.example).
@@ -14,6 +15,13 @@ services:
     volumes:
       - ../data:/app/data        # SQLite db + uploaded files persist here on the host
     environment:
+      # shared login the app checks on /login. If APP_PASSWORD is blank, auth is DISABLED
+      # (only safe behind another gate) — so set a strong one in deploy/.env.
+      - APP_USERNAME=${APP_USERNAME:-macgear}
+      - APP_PASSWORD=${APP_PASSWORD:-}
+      # secret used to sign the login cookie — set a long random string (rand -hex 32).
+      # Changing it logs everyone out.
+      - APP_SECRET=${APP_SECRET:-}
       # shared secret for the POST /admin/sync-pricing endpoint (n8n sends it). Optional;
       # if unset the endpoint rejects all calls. Set in deploy/.env.
       - PRICING_SYNC_TOKEN=${PRICING_SYNC_TOKEN:-}

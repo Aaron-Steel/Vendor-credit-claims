@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · MacGear Credit Claims</title>
+  <script>
+    // apply saved theme before first paint to avoid a flash of the light theme
+    (function(){try{if(localStorage.getItem('theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();
+  </script>
+  <link rel="stylesheet" href="/static/style.css?v={{ asset_ver }}">
+</head>
+<body class="login-page">
+  <main class="login-wrap">
+    <form method="post" action="/login" class="card login-card" autocomplete="on">
+      <div class="login-brand">MacGear</div>
+      <h1>Credit Claims</h1>
+      <p class="hint">Sign in to continue.</p>
+      {% if error %}<div class="banner error">{{ error }}</div>{% endif %}
+      <label>Username
+        <input name="username" autocomplete="username" autofocus required>
+      </label>
+      <label>Password
+        <input type="password" name="password" autocomplete="current-password" required>
+      </label>
+      <button class="btn" type="submit">Sign in</button>
+    </form>
+  </main>
+</body>
+</html>

@@ -1,8 +1,12 @@
 # Deploying Vendor Credit Claims — shared username/password (no SSO)
 
-End state: `https://claims.yourcompany.com` → Caddy (HTTPS + a login prompt) → the app.
-Anyone you give the shared username/password to can get in. n8n keeps running untouched.
-Data (SQLite DB + uploaded files) lives in `data/` on the droplet.
+End state: `https://claims.yourcompany.com` → Caddy (HTTPS) → the app, which shows its own
+styled **/login** page and checks a shared username/password. Anyone you give the shared
+credentials to can get in. n8n keeps running untouched. Data (SQLite DB + uploaded files)
+lives in `data/` on the droplet.
+
+> **Already running the older basic-auth version?** See "Migrating from Caddy basic_auth"
+> at the bottom — it's a 3-line change (env vars in, `basic_auth` block out).
 
 > This is the quick "let a couple of people test it" path. When you're ready for proper
 > per-person Microsoft logins, switch to `DEPLOY.md` (the Entra SSO version) — it reuses
@@ -68,7 +72,7 @@ docker inspect $CADDY -f '{{json .Mounts}}'                     # where the Cadd
 ```bash
 cd /opt/vendor-credit-claims/deploy
 cp .env.basic.example .env
-nano .env            # set CADDY_NETWORK to the network name from step 3
+nano .env            # set CADDY_NETWORK, APP_USERNAME, APP_PASSWORD, APP_SECRET (see step 5)
 
 docker compose -f docker-compose.basic.yml up -d --build
 docker compose -f docker-compose.basic.yml logs -f    # watch it start; Ctrl-C to stop watching
@@ -79,28 +83,35 @@ database, and starts serving on port 8000 inside the network (not exposed to the
 
 ---
 
-## 5. Generate the shared password hash
+## 5. Set the shared login
 
-Caddy stores a bcrypt hash, not the plaintext. Generate one (replace the password):
+Auth lives in the app now — no bcrypt hashing, no Caddy directive. In `deploy/.env` set:
 
-```bash
-docker exec $CADDY caddy hash-password --plaintext 'ChooseAStrongSharedPassword'
+```
+APP_USERNAME=macgear                  # what testers type
+APP_PASSWORD=ChooseAStrongSharedPassword
+APP_SECRET=<paste output of: openssl rand -hex 32>
 ```
 
-Copy the output — it starts with `$2a$`. That's the hash you'll paste into the Caddyfile.
-Pick the username your testers will type (e.g. `team`).
+- `APP_SECRET` signs the login cookie. Use a long random string and keep it stable —
+  changing it just signs everyone out (no data impact).
+- If `APP_PASSWORD` is left blank the app **disables** auth — only do that for local dev.
+
+After editing `.env`, apply it:
+
+```bash
+docker compose -f docker-compose.basic.yml up -d
+```
 
 ---
 
 ## 6. Add the subdomain to Caddy
 
-Edit the Caddyfile from step 3 and append (see `Caddyfile.basic.snippet`):
+Edit the Caddyfile from step 3 and append (see `Caddyfile.basic.snippet`) — note there's
+**no `basic_auth` block**, the app handles login itself:
 
 ```
 claims.yourcompany.com {
-    basic_auth {
-        team $2a$14$....your-generated-hash....
-    }
     reverse_proxy claims:8000
 }
 ```
@@ -114,16 +125,13 @@ docker exec $CADDY caddy reload --config /etc/caddy/Caddyfile
 
 Caddy fetches a Let's Encrypt certificate for the subdomain automatically.
 
-> If reload errors with `unknown directive: basic_auth`, your Caddy is older — change
-> `basic_auth` to `basicauth` (no underscore) in the block and reload again.
-
 ---
 
 ## 7. Test
 
-Open `https://claims.yourcompany.com` → the browser pops a login box → enter the
-username and the plaintext password (the one you hashed, not the hash) → you land on the
-dashboard. Share that username/password with your testers.
+Open `https://claims.yourcompany.com` → the app's **/login** page appears → enter the
+`APP_USERNAME` / `APP_PASSWORD` from `.env` → you land on the dashboard. "Sign out" is in
+the top nav. Share that username/password with your testers.
 
 ---
 
@@ -135,8 +143,9 @@ cd /opt/vendor-credit-claims && git pull
 cd deploy && docker compose -f docker-compose.basic.yml up -d --build
 ```
 
-**Change / add the shared password:** re-run step 5 for the new password, replace (or add
-another `username  hash` line in) the `basic_auth` block, and reload Caddy (step 6).
+**Change the shared password:** edit `APP_USERNAME` / `APP_PASSWORD` in `deploy/.env`, then
+`docker compose -f docker-compose.basic.yml up -d`. No Caddy change, no rebuild needed.
+(Existing sessions stay valid until they expire or you also rotate `APP_SECRET`.)
 
 **Back up the data** (DB + uploaded files) — the important one:
 ```bash
@@ -158,6 +167,36 @@ data is upserted).
   in `.env` matches step 3, and `docker compose -f docker-compose.basic.yml ps` shows the
   `claims` container up.
 - **No HTTPS cert:** DNS isn't pointing at the droplet yet, or ports 80/443 aren't open.
-- **Login box rejects the password:** you typed the hash instead of the plaintext, or the
-  `$` signs in the hash got mangled when pasting — re-paste the full hash exactly.
-- **`unknown directive: basic_auth`:** older Caddy — use `basicauth` (no underscore).
+- **/login rejects the password:** check `APP_USERNAME` / `APP_PASSWORD` in `deploy/.env`,
+  then `docker compose -f docker-compose.basic.yml up -d` to reload them (env changes need
+  the container recreated).
+- **Browser still pops a basic-auth box:** you've still got the old `basic_auth` block in
+  the Caddyfile — remove it (see the migration note below) and reload Caddy.
+- **Everyone got logged out:** `APP_SECRET` changed (or wasn't set, so it defaults per
+  build). Set a fixed `APP_SECRET` in `.env` and recreate the container.
+
+---
+
+## Migrating from Caddy basic_auth (existing deploy)
+
+If you deployed the earlier version where Caddy popped the browser login box:
+
+1. **Add the login env** to `deploy/.env` (reuse your existing shared password if you like):
+   ```
+   APP_USERNAME=macgear
+   APP_PASSWORD=YourSharedPassword
+   APP_SECRET=<openssl rand -hex 32>
+   ```
+2. **Pull + recreate the app:**
+   ```bash
+   cd /opt/vendor-credit-claims && git pull
+   cd deploy && docker compose -f docker-compose.basic.yml up -d --build
+   ```
+3. **Remove the `basic_auth { … }` block** from the Caddyfile (leave just
+   `reverse_proxy claims:8000` inside the site block), then reload Caddy:
+   ```bash
+   docker exec $CADDY caddy reload --config /etc/caddy/Caddyfile
+   ```
+
+Now the browser popup is gone and you get the styled `/login` page instead. If you skip
+step 3 you'll briefly get *both* the popup and the page.

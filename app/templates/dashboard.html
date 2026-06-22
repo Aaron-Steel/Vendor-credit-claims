@@ -106,7 +106,7 @@
       <td class="row-actions">
         <a href="/promo/{{ p.id }}">Open →</a>
         <form method="post" action="/promo/{{ p.id }}/delete" class="inline-delete"
-              onsubmit="return confirm('Delete promotion &quot;{{ (p.name or 'untitled')|e }}&quot;? This cannot be undone.')">
+              data-confirm="Delete promotion &quot;{{ (p.name or 'untitled')|e }}&quot;? This cannot be undone.">
           <button class="link danger" title="Delete promotion" aria-label="Delete promotion">✕</button>
         </form>
       </td>
