@@ -3,6 +3,36 @@
   --brand:#2f5496; --accent:#0d9488; --danger:#c0392b; --ok:#2e7d32;
   --radius:10px;
 }
+/* dark theme — overrides the palette vars + the few hardcoded light surfaces */
+[data-theme="dark"]{
+  --bg:#0f141b; --card:#1a212b; --ink:#e4e8ee; --muted:#9aa4b2; --line:#2a333f;
+  --accent:#2dd4bf; --danger:#f1707b; --ok:#6cc283;
+}
+[data-theme="dark"] a{color:#6ea8fe}
+[data-theme="dark"] .tile,
+[data-theme="dark"] .filterbar,
+[data-theme="dark"] .kpi,
+[data-theme="dark"] .tab,
+[data-theme="dark"] .btn.ghost,
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea{background:var(--card)}
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea{border-color:#3a4554;color:var(--ink)}
+[data-theme="dark"] table.grid thead th{background:#222b37;color:#c7d0db}
+[data-theme="dark"] table.grid tbody tr:hover{background:#222b37}
+[data-theme="dark"] table.lines tfoot .totrow td{background:#222b37}
+[data-theme="dark"] .split-group input[readonly]{background:#222b37;color:#c7d0db}
+[data-theme="dark"] tr.editrow>td{background:#1d2942}
+[data-theme="dark"] .tile.t-amber .tval{color:#e0a106}
+[data-theme="dark"] .tile.t-green .tval{color:#6cc283}
+[data-theme="dark"] .btn.ghost{color:#6ea8fe;border-color:#6ea8fe}
+[data-theme="dark"] .btn.ghost:hover{background:#222b37}
+[data-theme="dark"] .kpi.accent{background:#10312e}
+[data-theme="dark"] button.link{color:#6ea8fe}
+[data-theme="dark"] button.link.danger,[data-theme="dark"] .danger{color:var(--danger)}
+
 *{box-sizing:border-box}
 body{margin:0;font:15px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
   background:var(--bg);color:var(--ink)}
@@ -15,6 +45,9 @@ a:hover{text-decoration:underline}
 .topbar nav{display:flex;gap:1.2rem;align-items:center}
 .topbar nav a{color:#dfe7f5}
 .topbar nav a:hover{color:#fff}
+.theme-toggle{background:rgba(255,255,255,.15);border:0;color:#fff;font-size:1rem;line-height:1;
+  width:34px;height:34px;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.theme-toggle:hover{background:rgba(255,255,255,.3)}
 
 main{max-width:1240px;margin:1.5rem auto;padding:0 1.2rem}
 h1{margin:.2rem 0}
