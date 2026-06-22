@@ -98,6 +98,12 @@ def dashboard(request: Request, brand: str = "", status: str = "",
         "sel_brand": brand, "sel_status": status})
 
 
+# ---- help / instructions -----------------------------------------------------
+@app.get("/help", response_class=HTMLResponse)
+def help_page(request: Request):
+    return templates.TemplateResponse(request, "help.html", {})
+
+
 # ---- create promotion --------------------------------------------------------
 @app.get("/promo/new", response_class=HTMLResponse)
 def new_promo_form(request: Request, db: Session = Depends(get_db)):

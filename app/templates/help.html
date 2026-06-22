@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Help · Vendor Credit Claims{% endblock %}
+{% block content %}
+<h1>How to use Vendor Credit Claims</h1>
+<p class="sub">A guide to running a promotion from setup through to recovering the vendor credit.</p>
+
+<div class="card help">
+  <h2>What this tool does</h2>
+  <p>It replaces the per-promo Excel template and the email hand-offs between teams.
+  For each promotion you track, in one place:</p>
+  <ul>
+    <li><strong>The promo &amp; its lines</strong> — products, RRP, discount, expected sales, per-retailer.</li>
+    <li><strong>Inbound customer claims</strong> — what each retailer claims back for the discount they gave.</li>
+    <li><strong>The outbound vendor request</strong> — the credit MacGear claims back from the brand.</li>
+  </ul>
+  <p>The discount is funded three ways — <strong>Retailer / MacGear / Brand</strong> — so claims
+  aren't 1:1: MacGear absorbs its share. The calculations match the Excel template exactly.</p>
+</div>
+
+<div class="card help">
+  <h2>Quick start — run a promo end to end</h2>
+  <ol>
+    <li><strong>Create the promotion.</strong> Click <em>+ New Promotion</em>. Fill in the claim #,
+      name, brand, date range, the AUD→USD rate, and the default funding split. Tick the retailers
+      taking part (set each one's rebate if it differs).</li>
+    <li><strong>Add line items.</strong> On the promo page, add SKUs under each retailer. Type the
+      product code and the description / RRP / buy price autofill from the product master. Enter the
+      <em>% off</em> and the <em>6-week average</em> weekly units. You can copy SKUs from another
+      retailer block to save re-keying.</li>
+    <li><strong>Send for approval.</strong> Move the promo status through the workflow (see below) as
+      the vendor approves the spend and Sales releases it to the customer.</li>
+    <li><strong>Log the customer claim.</strong> After the promo runs, enter each retailer's
+      <em>actual sales</em> and the <em>amount claimed</em>, and attach their claim document.</li>
+    <li><strong>Raise the vendor request.</strong> The vendor (brand) claim is calculated for you;
+      send it to the vendor and track it through to <em>Credit Received</em>.</li>
+  </ol>
+</div>
+
+<div class="card help">
+  <h2>The line-item columns</h2>
+  <ul>
+    <li><strong>6wk avg</strong> — the customer's average weekly unit sales over the prior 6 weeks.
+      Used (with growth) to project <em>expected sales</em> over the promo period.</li>
+    <li><strong>Actual sales</strong> — the real units sold once known. The customer-claim summary
+      shows both an <em>expected</em> figure (from 6wk avg) and an <em>actual</em> figure (from this).
+      The quantity highlights <span class="ok">green</span> when actuals beat expectation and
+      <span class="danger">red</span> when they fall short.</li>
+    <li><strong>RRP / % Off / Promo Price</strong> — the last three columns. Promo price is simply
+      RRP less the % off.</li>
+    <li><strong>Funding split</strong> — each line uses the promo's default split unless you tick
+      <em>override</em> on that line. The three shares must total 100% — the retailer share fills in
+      automatically as the remainder and a line won't save unless it balances.</li>
+  </ul>
+</div>
+
+<div class="card help">
+  <h2>The three views</h2>
+  <p>Every promo can be shown three ways using the tabs at the top of the promo page —
+  the same data, framed for different audiences. Each view also has an <strong>Excel export</strong>:</p>
+  <ul>
+    <li><strong>Internal</strong> — the full picture, including MacGear's absorbed share.</li>
+    <li><strong>Sales</strong> — the version to share with the customer/Sales team.</li>
+    <li><strong>Vendor</strong> — the version supporting the credit request to the brand.</li>
+  </ul>
+</div>
+
+<div class="card help">
+  <h2>Statuses — who's turn is it</h2>
+  <p>Three tracks mirror the real departmental flow, so whoever opens a promo can see what's
+  outstanding without being emailed. The coloured pill shows the current step.</p>
+
+  <h3>Promotion (setup &amp; approval)</h3>
+  <table class="grid compact">
+    <thead><tr><th>Status</th><th>Next action</th></tr></thead>
+    <tbody>
+      {% for s in PROMO_STATUSES %}
+      <tr><td><span class="pill pg-{{ PILL_GROUP.get(s,'grey') }}">{{ s }}</span></td>
+          <td>{{ PROMO_NEXT.get(s,'') }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>Customer claim (per retailer)</h3>
+  <table class="grid compact">
+    <thead><tr><th>Status</th><th>Next action</th></tr></thead>
+    <tbody>
+      {% for s in CLAIM_STATUSES %}
+      <tr><td><span class="pill pg-{{ PILL_GROUP.get(s,'grey') }}">{{ s }}</span></td>
+          <td>{{ CLAIM_NEXT.get(s,'') }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>Vendor credit request</h3>
+  <table class="grid compact">
+    <thead><tr><th>Status</th><th>Next action</th></tr></thead>
+    <tbody>
+      {% for s in VENDOR_STATUSES %}
+      <tr><td><span class="pill pg-{{ PILL_GROUP.get(s,'grey') }}">{{ s }}</span></td>
+          <td>{{ VENDOR_NEXT.get(s,'') }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card help">
+  <h2>The dashboard</h2>
+  <p>The home page lists every promo with its current statuses. The tiles at the top summarise the
+  set you're looking at — active promos, total customer claimed, vendor amount still to recover,
+  vendor credits received, and what MacGear has absorbed. Use the <strong>brand</strong> and
+  <strong>status</strong> filters to narrow the list; the tiles update to match.</p>
+</div>
+
+<div class="card help">
+  <h2>Attachments</h2>
+  <p>You can upload a file against each retailer — typically the claim document that accompanies their
+  request. Files are stored with the promo and can be downloaded or removed later.</p>
+</div>
+
+<div class="card help">
+  <h2>Good to know</h2>
+  <ul>
+    <li><strong>Money is AUD, ex-GST</strong> unless a field is explicitly labelled USD. RRP is shown
+      GST-inclusive (the GST factor is 1.1).</li>
+    <li><strong>% off is entered as a percent</strong> (e.g. <code>15</code> for 15%).</li>
+    <li><strong>Editing the promo header</strong> — name, claim #, dates and the AUD→USD rate can be
+      changed after creation from the promo page.</li>
+    <li><strong>Dark mode</strong> — use the 🌙 button in the top bar; your choice is remembered on
+      this browser.</li>
+  </ul>
+</div>
+{% endblock %}

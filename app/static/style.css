@@ -71,6 +71,15 @@ button.link.danger,.danger{color:var(--danger)}
   padding:1.1rem;margin-bottom:1.2rem}
 .empty{text-align:center;padding:3rem;color:var(--muted)}
 
+/* help / instructions page */
+.card.help{max-width:860px}
+.card.help h2{margin:.1rem 0 .6rem;font-size:1.1rem}
+.card.help h3{margin:1rem 0 .4rem}
+.card.help ul,.card.help ol{margin:.3rem 0;padding-left:1.3rem}
+.card.help li{margin:.35rem 0}
+.card.help table.grid{margin:.4rem 0 .2rem}
+.card.help code{background:rgba(127,127,127,.15);padding:.05rem .3rem;border-radius:4px;font-size:.92em}
+
 /* dashboard summary tiles — metric cards with a colour accent */
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.8rem;margin:.6rem 0 1.3rem}
 .tile{position:relative;background:#fff;border:1px solid var(--line);border-radius:12px;
