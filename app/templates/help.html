@@ -46,7 +46,17 @@
       The quantity highlights <span class="ok">green</span> when actuals beat expectation and
       <span class="danger">red</span> when they fall short.</li>
     <li><strong>RRP / % Off / Promo Price</strong> — the last three columns. Promo price is simply
-      RRP less the % off.</li>
+      RRP less the % off. In the line editor you can type either the % off or the promo price and
+      the other fills in automatically.</li>
+    <li><strong>Support basis</strong> — how each line's support is calculated:
+      <ul>
+        <li><em>% off (discount)</em> — the default. Support = net buy × % off × funding ratio.
+          The promo margin is an <em>output</em>.</li>
+        <li><em>Target promo margin</em> — you enter a target end-to-end promo margin and the support
+          is <em>back-solved</em> to hit it (the % off still sets the customer promo price). Lines on
+          this basis show a ⌖ marker next to their % off.</li>
+      </ul>
+    </li>
     <li><strong>Funding split</strong> — each line uses the promo's default split unless you tick
       <em>override</em> on that line. The three shares must total 100% — the retailer share fills in
       automatically as the remainder and a line won't save unless it balances.</li>

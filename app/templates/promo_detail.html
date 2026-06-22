@@ -130,7 +130,7 @@
           <td class="num">{{ c.supplier_claim|money }}</td>
           <td class="num">{{ c.mg_claim|money }}</td>
           <td class="num">{{ l.rrp_inc|money }}</td>
-          <td class="num">{{ l.pct_off|pct }}</td>
+          <td class="num">{{ l.pct_off|pct }}{% if l.support_basis == 'margin' %} <span class="muted" title="Support set to target promo margin {{ (l.target_margin * 100)|round(2) if l.target_margin is not none else '?' }}%">⌖</span>{% endif %}</td>
           <td class="num">{{ c.rec_sale_inc|money }}</td>
           <td class="rowactions">
             <button type="button" class="link" title="edit" onclick="toggleEdit({{ l.id }})">✎</button>
@@ -148,6 +148,13 @@
             <label>Buy ex <input name="retailer_buy_ex" type="number" step="any" min="0" value="{{ l.retailer_buy_ex }}" style="width:7em"></label>
             <label>% off <input name="pct_off" type="number" step="any" min="0" max="100" value="{{ (l.pct_off * 100)|round(6) }}" style="width:6em"></label>
             <label>Promo price <input class="pp" type="number" step="any" min="0" value="{{ (l.rrp_inc * (1 - l.pct_off))|round(2) if l.rrp_inc is not none else '' }}" style="width:7em" title="RRP less % off — enter either one"></label>
+            <label>Support basis
+              <select name="support_basis" class="basis">
+                <option value="pct_off" {{ 'selected' if (l.support_basis or 'pct_off') == 'pct_off' }}>% off (discount)</option>
+                <option value="margin" {{ 'selected' if l.support_basis == 'margin' }}>Target promo margin</option>
+              </select>
+            </label>
+            <label class="tgt-wrap">Target promo % <input name="target_margin" class="tgt" type="number" step="any" value="{{ (l.target_margin * 100)|round(4) if l.target_margin is not none else '' }}" style="width:6em" title="Support is back-solved to hit this end-to-end promo margin"></label>
             <label>6wk avg <input name="avg_6wk" type="number" step="any" min="0" value="{{ l.avg_6wk if l.avg_6wk is not none else '' }}" style="width:7em"></label>
             <label>Actual sales <input name="actual_sales" type="number" step="any" min="0" value="{{ l.actual_sales if l.actual_sales is not none else '' }}" style="width:7em"></label>
             <label>Growth <input name="growth" type="number" step="any" placeholder="def {{ promo.growth_default }}" value="{{ l.growth if l.growth is not none else '' }}" style="width:6em"></label>
@@ -202,6 +209,11 @@
       <input name="retailer_buy_ex" type="number" step="any" min="0" placeholder="Buy ex" style="width:7em">
       <input name="pct_off" type="number" step="any" min="0" max="100" placeholder="% off" style="width:6em">
       <input class="pp" type="number" step="any" min="0" placeholder="promo price" style="width:8em" title="RRP less % off — enter either one">
+      <select name="support_basis" class="basis" title="how support is calculated" style="width:9em">
+        <option value="pct_off">support: % off</option>
+        <option value="margin">support: target margin</option>
+      </select>
+      <input name="target_margin" class="tgt" type="number" step="any" placeholder="target promo %" style="width:9em" title="Support back-solved to hit this end-to-end promo margin">
       <input name="avg_6wk" type="number" step="any" min="0" placeholder="6wk avg" style="width:7em">
       <input name="actual_sales" type="number" step="any" min="0" placeholder="actual sales" style="width:8em">
       <button class="btn small">Add</button>
@@ -433,6 +445,22 @@ function wirePromoPrice(form) {
   pp.addEventListener('input', pctFromPrice);
 }
 document.querySelectorAll('form.editline, .addline form').forEach(wirePromoPrice);
+
+// support basis: show the target-margin field only when "Target promo margin" is chosen
+function wireBasis(form) {
+  const sel = form.querySelector('.basis');
+  if (!sel) return;
+  const wrap = form.querySelector('.tgt-wrap');   // edit row wraps it in a label
+  const tgt = form.querySelector('.tgt');          // add-line row has a bare input
+  function sync() {
+    const margin = sel.value === 'margin';
+    if (wrap) wrap.style.display = margin ? '' : 'none';
+    else if (tgt) tgt.style.display = margin ? '' : 'none';
+  }
+  sel.addEventListener('change', sync);
+  sync();
+}
+document.querySelectorAll('form.editline, .addline form').forEach(wireBasis);
 
 // edit-details: end date can't precede start date
 (function () {

@@ -192,6 +192,7 @@ async def add_line(pr_id: int, request: Request, db: Session = Depends(get_db)):
     pr = db.get(PromoRetailer, pr_id)
     code = form.get("product_code", "").strip()
     prod = db.scalar(select(Product).where(Product.code == code)) if code else None
+    tgt = _parse_float(form.get("target_margin"))
     line = LineItem(
         promo_retailer_id=pr_id,
         product_code=code,
@@ -201,6 +202,8 @@ async def add_line(pr_id: int, request: Request, db: Session = Depends(get_db)):
         pct_off=(_parse_float(form.get("pct_off")) or 0.0) / 100.0,
         avg_6wk=_parse_float(form.get("avg_6wk")),
         actual_sales=_parse_float(form.get("actual_sales")),
+        support_basis=form.get("support_basis") or "pct_off",
+        target_margin=(tgt / 100.0) if tgt is not None else None,
     )
     db.add(line)
     db.commit()
@@ -237,6 +240,8 @@ async def copy_lines(pr_id: int, request: Request, db: Session = Depends(get_db)
             retailer_buy_ex=buy if buy is not None else src.retailer_buy_ex,
             pct_off=src.pct_off,
             avg_6wk=None,
+            support_basis=src.support_basis,
+            target_margin=src.target_margin,
             ratio_supplier=src.ratio_supplier,
             ratio_mg=src.ratio_mg,
             ratio_retailer=src.ratio_retailer,
@@ -272,6 +277,9 @@ async def edit_line(line_id: int, request: Request, db: Session = Depends(get_db
     line.avg_6wk = _parse_float(form.get("avg_6wk"))
     line.actual_sales = _parse_float(form.get("actual_sales"))
     line.growth = _parse_float(form.get("growth"))
+    line.support_basis = form.get("support_basis") or "pct_off"
+    tgt = _parse_float(form.get("target_margin"))
+    line.target_margin = (tgt / 100.0) if tgt is not None else None
     db.commit()
     return RedirectResponse(f"/promo/{promo_id}", status_code=303)
 

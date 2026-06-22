@@ -90,6 +90,9 @@ class LineItem(Base):
     pct_off: Mapped[float] = mapped_column(Float, default=0.0)
     avg_6wk: Mapped[float | None] = mapped_column(Float, nullable=True)
     actual_sales: Mapped[float | None] = mapped_column(Float, nullable=True)  # qty actually claimed
+    # support basis: "pct_off" (discount-driven, default) or "margin" (target promo margin)
+    support_basis: Mapped[str] = mapped_column(String, default="pct_off")
+    target_margin: Mapped[float | None] = mapped_column(Float, nullable=True)  # fraction, margin mode
     # per-line funding overrides (null -> inherit promo defaults)
     ratio_supplier: Mapped[float | None] = mapped_column(Float, nullable=True)
     ratio_mg: Mapped[float | None] = mapped_column(Float, nullable=True)

@@ -23,7 +23,9 @@ class Base(DeclarativeBase):
 # Lightweight additive migrations: column name -> SQL type, added if missing.
 # (Avoids a full migration framework for this small single-file SQLite app.)
 _ADDED_COLUMNS = {
-    "line_items": {"actual_sales": "FLOAT"},
+    "line_items": {"actual_sales": "FLOAT",
+                   "support_basis": "VARCHAR",
+                   "target_margin": "FLOAT"},
 }
 
 

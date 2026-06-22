@@ -61,6 +61,8 @@ def _line_inputs(line: LineItem, pr: PromoRetailer, promo: Promotion) -> LineInp
         avg_6wk=line.avg_6wk,
         growth=line.growth if line.growth is not None else promo.growth_default,
         actual_sales=line.actual_sales,
+        support_basis=line.support_basis or "pct_off",
+        target_margin=line.target_margin,
     )
 
 

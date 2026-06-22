@@ -48,7 +48,35 @@ def test_expected_sales_and_claims():
     assert abs(r.mg_claim - 24 * 4.895612820000001) < 1e-9
 
 
+def test_margin_basis_back_solves_support():
+    """MOVA Z60 / JB Hi-Fi from a real April promo built the margin-driven way:
+    buy 1799.40, rebate 9%, RRP ~2998.99, % off ~23.34%, target promo margin 35%,
+    brand funds 100% (supplier ratio 1, MG 0). Total support should be ~278.95."""
+    i = LineInputs(
+        retailer_buy_ex=1799.40, rebate=0.09, pct_off=0.23341,
+        ratio_supplier=1.0, ratio_mg=0.0, ratio_retailer=0.0,
+        rrp_inc=2998.99, support_basis="margin", target_margin=0.35,
+    )
+    r = compute_line(i, weeks=2)
+    assert abs(r.total_support - 278.95) < 0.1       # supplier + MG
+    assert abs(r.supplier_support - 278.95) < 0.1    # brand funds 100%
+    assert abs(r.mg_support - 0.0) < 1e-9
+    # by construction the resulting promo margin equals the target
+    assert abs(r.promo_margin - 0.35) < 1e-6
+
+
+def test_margin_basis_falls_back_without_target():
+    """No target margin set -> behaves like the default % off method."""
+    base = dict(retailer_buy_ex=84.98, rebate=0.135, pct_off=0.20,
+                ratio_supplier=0.333, ratio_mg=0.333, ratio_retailer=0.333, rrp_inc=169.95)
+    pct = compute_line(LineInputs(**base), weeks=2)
+    margin_no_target = compute_line(LineInputs(support_basis="margin", **base), weeks=2)
+    assert abs(pct.total_support - margin_no_target.total_support) < 1e-12
+
+
 if __name__ == "__main__":
     test_anker_officeworks_line()
     test_expected_sales_and_claims()
+    test_margin_basis_back_solves_support()
+    test_margin_basis_falls_back_without_target()
     print("All calc tests passed.")
