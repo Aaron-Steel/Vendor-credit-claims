@@ -66,6 +66,10 @@ h3{margin:.6rem 0;font-size:1rem}
 button.link{background:none;border:0;color:var(--brand);cursor:pointer;font-size:.85rem;padding:0}
 button.link.danger,.danger{color:var(--danger)}
 .ok{color:var(--ok)}
+.row-actions{white-space:nowrap}
+.inline-delete{display:inline;margin-left:.6rem}
+.inline-delete button.link{font-size:.95rem;line-height:1;opacity:.45}
+.inline-delete button.link:hover{opacity:1}
 
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
   padding:1.1rem;margin-bottom:1.2rem}

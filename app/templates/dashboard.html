@@ -103,7 +103,13 @@
           <span class="pill pg-{{ PILL_GROUP.get(p.vendor_request.status,'grey') }}">{{ p.vendor_request.status }}</span>
         {% else %}—{% endif %}
       </td>
-      <td><a href="/promo/{{ p.id }}">Open →</a></td>
+      <td class="row-actions">
+        <a href="/promo/{{ p.id }}">Open →</a>
+        <form method="post" action="/promo/{{ p.id }}/delete" class="inline-delete"
+              onsubmit="return confirm('Delete promotion &quot;{{ (p.name or 'untitled')|e }}&quot;? This cannot be undone.')">
+          <button class="link danger" title="Delete promotion" aria-label="Delete promotion">✕</button>
+        </form>
+      </td>
     </tr>
   {% endfor %}
   </tbody>
