@@ -218,22 +218,58 @@
     <summary>+ Add line item</summary>
     <form method="post" action="/retailer/{{ pr.id }}/line" class="inline-form"
           data-retailer="{{ pr.retailer_name }}">
-      <input name="product_code" placeholder="SKU code" class="code" autocomplete="off">
-      <input name="description" placeholder="description (auto)" class="desc">
-      <input name="rrp_inc" type="number" step="any" min="0" placeholder="RRP inc" class="rrp" style="width:7em">
-      <input name="retailer_buy_ex" type="number" step="any" min="0" placeholder="Buy ex" style="width:7em">
-      <input name="pct_off" type="number" step="any" min="0" max="100" placeholder="% off" style="width:6em">
-      <input class="pp" type="number" step="any" min="0" placeholder="promo price" style="width:8em" title="RRP less % off — enter either one">
-      <select name="support_basis" class="basis" title="how support is calculated (default from promo)" style="width:9em">
-        <option value="pct_off" {{ 'selected' if (promo.support_basis_default or 'pct_off') == 'pct_off' }}>support: % off</option>
-        <option value="margin" {{ 'selected' if promo.support_basis_default == 'margin' }}>support: target margin</option>
-        <option value="cogs" {{ 'selected' if promo.support_basis_default == 'cogs' }}>support: % off cost</option>
-      </select>
-      <input name="target_margin" class="tgt" type="number" step="any" placeholder="target promo %" value="{{ (promo.target_margin_default * 100)|round(4) if promo.target_margin_default is not none else '' }}" style="width:9em" title="Support back-solved to hit this end-to-end promo margin">
-      <input name="cogs_supplier_pct" class="csp" type="number" step="any" min="0" placeholder="supplier % off cost" value="{{ (promo.cogs_supplier_pct_default * 100)|round(4) if promo.cogs_supplier_pct_default is not none else '' }}" style="width:11em" title="Supplier funds this % of buy-ex">
-      <input name="cogs_mg_pct" class="cmp" type="number" step="any" min="0" placeholder="MG % off cost" value="{{ (promo.cogs_mg_pct_default * 100)|round(4) if promo.cogs_mg_pct_default is not none else '' }}" style="width:9em" title="MacGear funds this % of buy-ex">
-      <input name="avg_6wk" type="number" step="any" min="0" placeholder="6wk avg" style="width:7em">
-      <input name="actual_sales" type="number" step="any" min="0" placeholder="actual sales" style="width:8em">
+      <label>
+        <span class="fld">Code<span class="info" data-tip="Product SKU code. Type it and the description, RRP and buy price auto-fill from the product master.">i</span></span>
+        <input name="product_code" placeholder="SKU code" class="code" autocomplete="off" style="width:9em">
+      </label>
+      <label class="grow">
+        <span class="fld">Description<span class="info" data-tip="Product name. Auto-fills from the SKU code and is locked — click ✎ to edit.">i</span><button type="button" class="lockedit" title="Edit this field">✎</button></span>
+        <input name="description" placeholder="description (auto)" class="desc locked" readonly>
+      </label>
+      <label>
+        <span class="fld">RRP inc<span class="info" data-tip="Recommended retail price, GST inclusive. Auto-fills from the product master and is locked — click ✎ to edit.">i</span><button type="button" class="lockedit" title="Edit this field">✎</button></span>
+        <input name="rrp_inc" type="number" step="any" min="0" placeholder="RRP inc" class="rrp locked" style="width:7em" readonly>
+      </label>
+      <label>
+        <span class="fld">Buy ex<span class="info" data-tip="Price this retailer paid you for the stock, GST exclusive. Auto-fills per retailer and is locked — click ✎ to edit.">i</span><button type="button" class="lockedit" title="Edit this field">✎</button></span>
+        <input name="retailer_buy_ex" type="number" step="any" min="0" placeholder="Buy ex" style="width:7em" readonly class="locked">
+      </label>
+      <label>
+        <span class="fld">% off<span class="info" data-tip="Discount off RRP for the promo. Sets the customer's promo price — enter this or the promo price.">i</span></span>
+        <input name="pct_off" type="number" step="any" min="0" max="100" placeholder="% off" style="width:6em">
+      </label>
+      <label>
+        <span class="fld">Promo price<span class="info" data-tip="Advertised promo price (RRP less % off). Enter this OR % off — each updates the other.">i</span></span>
+        <input class="pp" type="number" step="any" min="0" placeholder="promo price" style="width:8em">
+      </label>
+      <label>
+        <span class="fld">Support basis<span class="info" data-tip="How funding support is calculated: % off (discount), Target promo margin (back-solved), or % off cost (COGS). Defaults to the promo's setting.">i</span></span>
+        <select name="support_basis" class="basis" style="width:11em">
+          <option value="pct_off" {{ 'selected' if (promo.support_basis_default or 'pct_off') == 'pct_off' }}>% off (discount)</option>
+          <option value="margin" {{ 'selected' if promo.support_basis_default == 'margin' }}>Target promo margin</option>
+          <option value="cogs" {{ 'selected' if promo.support_basis_default == 'cogs' }}>% off cost (COGS)</option>
+        </select>
+      </label>
+      <label class="tgt-wrap">
+        <span class="fld">Target promo %<span class="info" data-tip="Only for the Target-margin basis: support is back-solved so the line hits this end-to-end promo margin.">i</span></span>
+        <input name="target_margin" class="tgt" type="number" step="any" placeholder="target promo %" value="{{ (promo.target_margin_default * 100)|round(4) if promo.target_margin_default is not none else '' }}" style="width:9em">
+      </label>
+      <label class="cogs-wrap">
+        <span class="fld">Supplier % off cost<span class="info" data-tip="Only for the COGS basis: the % of buy-ex (gross) that the supplier funds.">i</span></span>
+        <input name="cogs_supplier_pct" class="csp" type="number" step="any" min="0" placeholder="supplier % off cost" value="{{ (promo.cogs_supplier_pct_default * 100)|round(4) if promo.cogs_supplier_pct_default is not none else '' }}" style="width:11em">
+      </label>
+      <label class="cogs-wrap">
+        <span class="fld">MacGear % off cost<span class="info" data-tip="Only for the COGS basis: the % of buy-ex (gross) that MacGear funds.">i</span></span>
+        <input name="cogs_mg_pct" class="cmp" type="number" step="any" min="0" placeholder="MG % off cost" value="{{ (promo.cogs_mg_pct_default * 100)|round(4) if promo.cogs_mg_pct_default is not none else '' }}" style="width:11em">
+      </label>
+      <label>
+        <span class="fld">6wk avg<span class="info" data-tip="Average weekly units sold over the last 6 weeks. Drives the expected-sales forecast and claim.">i</span></span>
+        <input name="avg_6wk" type="number" step="any" min="0" placeholder="6wk avg" style="width:7em">
+      </label>
+      <label>
+        <span class="fld">Actual sales<span class="info" data-tip="Units actually sold during the promo. Fill in after it ends to reconcile the claim vs forecast.">i</span></span>
+        <input name="actual_sales" type="number" step="any" min="0" placeholder="actual sales" style="width:8em">
+      </label>
       <button class="btn small">Add</button>
     </form>
   </details>
@@ -385,6 +421,26 @@ function toggleEdit(id) {
     if (!row.hidden) { const f = row.querySelector('input'); if (f) f.focus(); }
   }
 }
+// add-line: Description / RRP / Buy ex are locked (auto-filled) until you click ✎
+document.querySelectorAll('.lockedit').forEach(function (btn) {
+  btn.addEventListener('click', function (e) {
+    e.preventDefault();
+    const input = btn.closest('label').querySelector('input');
+    if (!input) return;
+    if (input.hasAttribute('readonly')) {
+      input.removeAttribute('readonly');
+      input.classList.remove('locked');
+      btn.classList.add('on');
+      btn.title = 'Lock this field';
+      input.focus();
+    } else {
+      input.setAttribute('readonly', '');
+      input.classList.add('locked');
+      btn.classList.remove('on');
+      btn.title = 'Edit this field';
+    }
+  });
+});
 // autofill description / RRP / buy-ex when a SKU code is entered
 const PROMO_COUNTRY = "{{ promo.country or 'AU' }}";
 document.querySelectorAll('.inline-form .code').forEach(function (input) {
@@ -472,10 +528,10 @@ function wireBasis(form) {
   const sel = form.querySelector('.basis');
   if (!sel) return;
   const show = (el, on) => { if (el) el.style.display = on ? '' : 'none'; };
-  const tgtWrap = form.querySelector('.tgt-wrap');         // edit row label
-  const tgtBare = form.querySelector('.tgt');              // add-line bare input
-  const cogsWraps = form.querySelectorAll('.cogs-wrap');   // edit row labels
-  const cogsBare = form.querySelectorAll('.csp, .cmp');    // add-line bare inputs
+  const tgtWrap = form.querySelector('.tgt-wrap');         // titled label (both rows)
+  const tgtBare = form.querySelector('.tgt');              // fallback: bare input
+  const cogsWraps = form.querySelectorAll('.cogs-wrap');   // titled labels (both rows)
+  const cogsBare = form.querySelectorAll('.csp, .cmp');    // fallback: bare inputs
   const splitGroup = form.querySelector('.split-group');   // funding split (edit row only)
   function sync() {
     const v = sel.value;
